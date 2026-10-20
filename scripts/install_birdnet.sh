@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # Install BirdNET script
 install_usage() {
-  echo "Usage: $0 [--educators] [--no-usb-mic] [--illustrations <URL>]" >&2
+  echo "Usage: $0 [--educators] [--no-usb-mic] [--illustrations <URL>] [--frame-png]" >&2
   exit 64
 }
 AVIAN_INSTALL_EDUCATORS=0
 AVIAN_USB_MIC=1
 AVIAN_ILLUSTRATIONS_URL=
+AVIAN_FRAME_PNG=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --educators) AVIAN_INSTALL_EDUCATORS=1 ;;
     --no-usb-mic) AVIAN_USB_MIC=0 ;;
+    --frame-png) AVIAN_FRAME_PNG=1 ;;
     --illustrations)
       [ "$#" -ge 2 ] && [ -n "$2" ] || install_usage
       AVIAN_ILLUSTRATIONS_URL=$2
@@ -97,6 +99,10 @@ fi
 if [ -n "$AVIAN_ILLUSTRATIONS_URL" ]; then
   "$my_dir/avian/scripts/import_bundle.sh" "$AVIAN_ILLUSTRATIONS_URL" \
     || echo "Illustration import failed; retry with ~/BirdNET-Pi/avian/scripts/import_bundle.sh <URL>."
+fi
+if [ "$AVIAN_FRAME_PNG" = 1 ]; then
+  "$my_dir/frame/serve_png.sh" enable \
+    || echo "frame.png setup failed; retry with ~/BirdNET-Pi/frame/serve_png.sh enable."
 fi
 
 exit 0
