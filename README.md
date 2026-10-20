@@ -34,7 +34,7 @@ Use [Raspberry Pi Imager](https://www.raspberrypi.com/software/). Pick Raspberry
 
 - Username
 - WiFi SSID + password
-- Hostname: `birdnet`
+- Hostname: `birdnet` (any name works; use `<your-hostname>.local` wherever this guide says `birdnet.local`)
 - Enable SSH with password auth
 
 Plug the USB mic into the Pi. Place the capsule in a window or mount it outside. Boot.
@@ -51,6 +51,19 @@ curl -s https://raw.githubusercontent.com/Twarner491/AvianVisitors/avian-visitor
 ```
 
 Clones this fork, installs BirdNET-Pi, symlinks the AvianVisitors overlay into the Caddy web root. Takes 20-40 minutes. Reboots when done.
+
+### Installer options
+
+Add options after `bash -s --`, for example `curl -fsSL <installer URL> | bash -s -- --illustrations https://github.com/<owner>/<repo>`:
+
+| Option | What it does |
+| --- | --- |
+| `--educators` | Enables Educators mode (see below). |
+| `--no-usb-mic` | Skips the USB microphone setup. By default, if exactly one USB capture card is plugged in, the installer records from it directly by card id and tells PulseAudio to leave it alone; see [troubleshooting](#detections-are-all-human-00). It never replaces a `REC_CARD` you have already set. |
+| `--illustrations <URL>` | Merges a community illustration set for your region (git or zip URL). See [illustration-bundles.md](illustration-bundles.md#using-a-set-from-this-list). |
+| `--frame-png` | Publishes the e-ink frame image at `http://<hostname>.local/frame.png`, refreshed every 15 minutes. Off by default because it installs Chromium. See [`frame/`](frame/README.md#serve-framepng-from-the-station-instead). |
+
+Each option has a script you can run again later over SSH: `~/BirdNET-Pi/scripts/avian_mic_setup.sh`, `~/BirdNET-Pi/avian/scripts/import_bundle.sh`, and `~/BirdNET-Pi/frame/serve_png.sh`.
 
 Collage: `http://birdnet.local/`. Stock BirdNET-Pi UI: `http://birdnet.local/index.php`. The menu button in the top right opens an admin overlay with Settings, System, Logs, and Tools.
 
@@ -124,6 +137,12 @@ sudo avian-bundle use '<BUNDLE_ID>'
 
 With a saved location, the device downloads the bundle's birds expected there throughout the year. Coordinates are not sent to the bundle catalog. Without a location, it downloads the full set; add `--all-species` to request the full set explicitly. In Settings, **Refresh local birds** reapplies a changed location to the current downloaded bundle.
 
+If your region is not in the catalog yet, a community set may be listed in [illustration-bundles.md](illustration-bundles.md#using-a-set-from-this-list). You can merge it into your station's own illustrations with one command:
+
+```bash
+~/BirdNET-Pi/avian/scripts/import_bundle.sh https://github.com/<owner>/<repo>
+```
+
 To share your own set, open **Tools → Your data → Export bundle**. Review the local illustrations, download the upload-ready ZIP, then sign in at [avianvisitors.com/bundles](https://avianvisitors.com/bundles) and upload it. The station never uploads a bundle automatically.
 
 ### Restyle or generate your own
@@ -131,21 +150,25 @@ To share your own set, open **Tools → Your data → Export bundle**. Review th
 The repo includes 666 illustrations for 333 species, each perched and in flight. To restyle them or generate a set for your own region:
 
 ```bash
-pip install -r ~/BirdNET-Pi/avian/scripts/requirements.txt
+# a separate venv (~/avian-venv) keeps these packages out of BirdNET's own venv
+~/BirdNET-Pi/avian/scripts/setup_venv.sh --cutout
 export GEMINI_API_KEY='your-key'  # image generation requires billing enabled
 
 # generate on a cream ground, cut the ground off, rebuild the collage masks
-python3 ~/BirdNET-Pi/avian/scripts/pregen.py --labels ~/BirdNET-Pi/model/labels.txt --force
-python3 ~/BirdNET-Pi/avian/scripts/cutout.py
-python3 ~/BirdNET-Pi/avian/scripts/build_masks.py
+~/avian-venv/bin/python ~/BirdNET-Pi/avian/scripts/pregen.py --labels ~/BirdNET-Pi/model/labels.txt --force
+~/avian-venv/bin/python ~/BirdNET-Pi/avian/scripts/cutout.py
+~/avian-venv/bin/python ~/BirdNET-Pi/avian/scripts/build_masks.py
 ```
 
 On an installed station, run all three commands in order. The first changed
 PNG temporarily marks the included artwork unavailable; the final
 `build_masks.py` call atomically republishes matching geometry and restores it.
-Do not copy individual PNGs directly into the live illustration directory.
+Do not copy individual PNGs directly into the live illustration directory, and
+do not edit `apt.js` on a station: the mask build already refreshes browser caches.
 
-On a Pi with 4 GB of RAM or less, add `--model u2net` to the `cutout.py` command; the default model may be [OOM-killed](https://github.com/Twarner491/AvianVisitors/issues/17).
+Don't install these requirements into `~/BirdNET-Pi/birdnet`: a newer Pillow breaks BirdNET's streamlit.
+
+`cutout.py` checks free memory before loading its ~1 GB model. On a Pi with 4 GB of RAM or less it stops instead of being [OOM-killed](https://github.com/Twarner491/AvianVisitors/issues/17). Run it on a desktop and copy the PNGs back, or add `--model u2net`.
 
 Filter to your region with `--ebird-region US-CA` (needs `EBIRD_API_KEY`). The full pipeline, prompt, reference images, and per-species tuning live in [`avian/scripts/README.md`](avian/scripts/README.md). Style lives in [`prompt.template.md`](avian/scripts/prompt.template.md).
 
@@ -182,7 +205,38 @@ otherwise.
 
 ## Wall frame
 
-An optional e-ink frame puts the bird collage on a panel by your window. Build it from [`frame/`](frame/README.md). It can run off your own BirdNET mic, from BirdWeather around a ZIP code, or from one public BirdWeather station with `frame/install.sh --station-id <ID>`.
+An optional e-ink frame puts the bird collage on a panel by your window. Build it from [`frame/`](frame/README.md). It can run off your own BirdNET mic, from BirdWeather around a ZIP code, or from one public BirdWeather station with `frame/install.sh --station-id <ID>`. If your station isn't called `birdnet`, add `--base-url http://<hostname>.local`.
+
+---
+
+## Troubleshooting
+
+### Detections are all "Human, 0.0"
+
+BirdNET is recording silence. This usually happens with combined USB mic and headphone adapters: PulseAudio exposes only their output, so recordings come from the headphone "monitor" instead of the mic. Check what is being recorded:
+
+```bash
+~/BirdNET-Pi/scripts/avian_mic_setup.sh --list    # capture cards and the current REC_CARD
+~/BirdNET-Pi/scripts/avian_mic_setup.sh --test    # records 5 s and prints the level
+```
+
+To record straight from the USB mic, bypassing PulseAudio, run:
+
+```bash
+~/BirdNET-Pi/scripts/avian_mic_setup.sh --auto    # or --card <id> if you have several
+```
+
+This adds a udev rule so PulseAudio ignores that card, and sets `REC_CARD=plughw:CARD=<id>,DEV=0` in `/etc/birdnet/birdnet.conf`. Using the card id, not its number, keeps it working if cards are renumbered. Re-run it after swapping mics. `--force` replaces a `REC_CARD` you set yourself, and `--remove` undoes the change. While BirdNET records from a direct ALSA card, the live audio stream is off. If detections still look silent, reboot so no older PulseAudio instance holds the card.
+
+### The collage is missing local birds
+
+The collage only draws birds that have illustrations, and the included set covers western North America. Detected birds without art are left out.
+
+1. Look for your region at [avianvisitors.com/bundles](https://avianvisitors.com/bundles) and run `sudo avian-bundle use '<BUNDLE_ID>'`.
+2. If it is not there yet, merge a community set from [illustration-bundles.md](illustration-bundles.md#using-a-set-from-this-list) with `~/BirdNET-Pi/avian/scripts/import_bundle.sh <URL>`.
+3. Or generate your own; see [Restyle or generate your own](#restyle-or-generate-your-own).
+
+Imported or generated art appears while the station uses its own illustrations. If you picked a downloaded bundle in **Settings → Bird bundle**, switch back to see them. Browsers pick up the new art automatically; reload the page if an old copy is still showing.
 
 ---
 
