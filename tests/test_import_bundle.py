@@ -13,15 +13,14 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "avian/scripts"))
-try:
-    import fcntl  # noqa: F401
-except ImportError:  # these tests never take a lock; let them run off-Linux
-    sys.modules["fcntl"] = types.ModuleType("fcntl")
-
 from PIL import Image  # noqa: E402
 
-import build_masks  # noqa: E402
-import import_bundle  # noqa: E402
+# These tests never take a lock. Off Linux, stub fcntl for this import only,
+# so the stub never leaks into other test modules.
+_STUB = {} if sys.platform != "win32" else {"fcntl": types.ModuleType("fcntl")}
+with mock.patch.dict(sys.modules, _STUB):
+    import build_masks  # noqa: E402
+    import import_bundle  # noqa: E402
 
 
 def png(color=(10, 20, 30, 0), mode="RGBA") -> bytes:
