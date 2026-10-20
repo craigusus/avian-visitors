@@ -4,7 +4,9 @@
 #
 # Four ways to feed the frame, pick one:
 #   ./install.sh                            mirror the BirdNET-Pi on your network
-#                                           (birdnet.local), rendered on this Pi
+#                                           (birdnet.local), rendered on this Pi;
+#                                           add --base-url http://<host>.local if
+#                                           your station has another hostname
 #   ./install.sh --image-url <URL>          fetch a ready-made frame PNG instead
 #                                           (e.g. a public Cloudflare Worker)
 #   ./install.sh --bird-weather --zip <ZIP> standalone from BirdWeather, no mic
@@ -186,6 +188,7 @@ BIRD_WEATHER=0
 ZIP=""
 STATION_ID=""
 IMAGE_URL=""
+BASE_URL=""
 EBIRD_KEY=""
 EBIRD_KEY_FILE=""
 EBIRD_KEY_SOURCE=none
@@ -208,6 +211,9 @@ while [ $# -gt 0 ]; do
     --image-url) [ $# -ge 2 ] || { echo "--image-url needs a URL, e.g. --image-url https://bird.example/frame.png" >&2; exit 1; }
                  MODE=image; IMAGE_URL="$2"; SANITIZED_ARGS+=(--image-url "$2"); shift 2 ;;
     --image-url=*) MODE=image; IMAGE_URL="${1#*=}"; SANITIZED_ARGS+=(--image-url "$IMAGE_URL"); shift ;;
+    --base-url) [ $# -ge 2 ] || { echo "--base-url needs a URL, e.g. --base-url http://mybirds.local" >&2; exit 1; }
+                BASE_URL="$2"; SANITIZED_ARGS+=(--base-url "$2"); shift 2 ;;
+    --base-url=*) BASE_URL="${1#*=}"; SANITIZED_ARGS+=(--base-url "$BASE_URL"); shift ;;
     --ebird-key) [ $# -ge 2 ] || { echo "--ebird-key needs a value (a free key from ebird.org/api/keygen)" >&2; exit 1; }
                  [ "$EBIRD_KEY_SOURCE" = none ] || install_fail "--ebird-key may only be supplied once"
                  EBIRD_KEY="$2"; EBIRD_KEY_SOURCE=argument; shift 2 ;;
@@ -246,6 +252,25 @@ if [ -n "$IMAGE_URL" ] && { [ "$BIRD_WEATHER" = 1 ] || [ -n "$ZIP" ] || [ -n "$S
   echo "--image-url cannot be combined with BirdWeather options" >&2
   exit 1
 fi
+if [ -n "$BASE_URL" ] && [ "$MODE" != local ]; then
+  echo "--base-url only applies when mirroring a BirdNET-Pi station" >&2
+  exit 1
+fi
+# Scheme, host and optional port only, so the value is safe to write into TOML.
+if [ -n "$BASE_URL" ] && ! [[ "$BASE_URL" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?/?$ ]]; then
+  echo "--base-url must look like http://<hostname>.local or http://<ip-address>" >&2
+  exit 1
+fi
+if [ -z "$BASE_URL" ]; then
+  # On the station itself the collage is local; elsewhere use the README's
+  # suggested hostname, which --base-url overrides.
+  if [ -f /etc/birdnet/birdnet.conf ]; then
+    BASE_URL="http://localhost"
+  else
+    BASE_URL="http://birdnet.local"
+  fi
+fi
+BASE_URL="${BASE_URL%/}"
 if [ -n "$ZIP" ] && [ "$BIRD_WEATHER" != 1 ]; then
   echo "--zip only applies with --bird-weather" >&2
   exit 1
@@ -702,11 +727,13 @@ verify_existing_config /usr/bin/setpriv --no-new-privs --
 if [ "$CONFIG_EXISTS" = 1 ]; then
   echo "     $CONFIG already exists, leaving it untouched."
 elif [ "$MODE" = local ]; then
-  cat > "$CONFIG" <<'CFG'
-# birdframe-mode: local
-# AvianVisitors frame, local mode: mirrors the BirdNET-Pi on your network.
-# This Pi screenshots birdnet.local itself, so there is nothing else to set up.
-base_url = "http://birdnet.local"
+  {
+    printf '%s\n' '# birdframe-mode: local'
+    printf '%s\n' '# AvianVisitors frame, local mode: mirrors the BirdNET-Pi on your network.'
+    printf '%s\n' '# This Pi screenshots base_url itself. Change it if the station moves.'
+    printf 'base_url = "%s"\n' "$BASE_URL"
+  } > "$CONFIG"
+  cat >> "$CONFIG" <<'CFG'
 shoot = true
 shoot_title = "Avian Visitors"
 shoot_subtitle = "Heard Today"
@@ -769,10 +796,11 @@ case "$MODE" in
   local)
     cat <<DONE
 
-Installed. The frame mirrors birdnet.local on your network and refreshes every
+Installed. The frame mirrors $BASE_URL and refreshes every
 15 min, only when the birds change. Until the mic has heard its first bird it
 shows a plain title card. If the panel hangs upside down, set rotate = 270 in
-~/.birdframe/config.toml.
+~/.birdframe/config.toml. If your station has a different hostname, set
+base_url there (e.g. base_url = "http://mybirds.local").
 DONE
     ;;
   image)

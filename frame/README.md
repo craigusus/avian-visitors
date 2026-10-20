@@ -57,6 +57,8 @@ Pick how the frame gets its birds:
 ```bash
 # Pair with your bird mic on the same network (birdnet.local). The default.
 ./install.sh
+# ...or, if your station has another hostname (run `hostname` on it):
+./install.sh --base-url http://mybirds.local
 
 # No microphone: draw the collage from BirdWeather for any ZIP code.
 ./install.sh --bird-weather --zip 94107
@@ -67,6 +69,8 @@ Pick how the frame gets its birds:
 # Bird mic hosted at a public URL: point the frame straight at it.
 ./install.sh --image-url https://bird.onethreenine.net/frame.png?k=YOUR_FRAME_KEY
 ```
+
+The station's address lives in `base_url` in `~/.birdframe/config.toml`; edit it there if the station's hostname or IP changes. Installed on the station itself, the frame uses `http://localhost`.
 
 Run `./install.sh` as your regular SSH user, without `sudo`; the installer asks
 for elevation only for the system files and services it manages.
@@ -100,6 +104,16 @@ cd ~/AvianVisitors/frame && git pull --ff-only && \
 If Git reports local edits, preserve them and resolve that before updating.
 
 Slow, incomplete, or corrupt artwork and a changing collage leave the last good frame and refresh state untouched. Capture validates the exact PNG/WebP responses used by the browser, then combines their artwork with small transparent captures of the titles and labels. If artwork validation repeatedly fails, check the source illustration before retrying; preserve custom artwork and do not delete the previous frame. Desktop and container tests do not replace a capture check on the frame Pi.
+
+### Serve frame.png from the station instead
+
+To render the frame image on the BirdNET-Pi station itself, with no panel attached there, enable the opt-in timer on the station (Chromium needs a Pi 4/5 or similar):
+
+```bash
+~/BirdNET-Pi/frame/serve_png.sh enable      # or install with --frame-png
+```
+
+Every 15 minutes it writes a 1200x1600 `frame.png` that the station serves at `http://<station-hostname>.local/frame.png`. A frame elsewhere can then use `./install.sh --image-url http://<station-hostname>.local/frame.png`. `serve_png.sh status` shows the last run, `serve_png.sh disable` removes the timer and image, and titles live in `~/.birdframe/frame-png.env`.
 
 ### Change the illustration bundle
 

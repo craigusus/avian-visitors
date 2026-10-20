@@ -4,6 +4,8 @@
 
 # --- Where the collage comes from -------------------------------------------
 # Default: mirror the BirdNET-Pi on your network. This Pi screenshots it.
+# Use your station's hostname (run `hostname` on it) or IP address; on the
+# station itself use "http://localhost".
 base_url = "http://birdnet.local"
 shoot = true
 
