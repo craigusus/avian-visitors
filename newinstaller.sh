@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 
+installer_usage() {
+  echo "Usage: $0 [--educators] [--no-usb-mic]" >&2
+  exit 64
+}
 installer_args=()
-case "$#" in
-  0) ;;
-  1)
-    [ "$1" = --educators ] \
-      || { echo "Usage: $0 [--educators]" >&2; exit 64; }
-    installer_args=(--educators)
-    ;;
-  *) echo "Usage: $0 [--educators]" >&2; exit 64 ;;
-esac
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --educators|--no-usb-mic) installer_args+=("$1") ;;
+    *) installer_usage ;;
+  esac
+  shift
+done
 
 if [ "$EUID" == 0 ]
   then echo "Please run as a non-root user."
@@ -60,6 +62,7 @@ git clone -b $branch --depth=1 https://github.com/Twarner491/AvianVisitors.git $
 "$HOME/BirdNET-Pi/scripts/install_birdnet.sh" "${installer_args[@]}"
 if [ ${PIPESTATUS[0]} -eq 0 ];then
   echo "Installation completed successfully"
+  echo "After the reboot, open http://$(hostname).local/ (or this Pi's IP address)."
   sudo reboot
 else
   echo "The installation exited unsuccessfully."

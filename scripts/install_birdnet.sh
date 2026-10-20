@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 # Install BirdNET script
-case "$#" in
-  0) AVIAN_INSTALL_EDUCATORS=0 ;;
-  1)
-    [ "$1" = --educators ] \
-      || { echo "Usage: $0 [--educators]" >&2; exit 64; }
-    AVIAN_INSTALL_EDUCATORS=1
-    ;;
-  *) echo "Usage: $0 [--educators]" >&2; exit 64 ;;
-esac
+install_usage() {
+  echo "Usage: $0 [--educators] [--no-usb-mic]" >&2
+  exit 64
+}
+AVIAN_INSTALL_EDUCATORS=0
+AVIAN_USB_MIC=1
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --educators) AVIAN_INSTALL_EDUCATORS=1 ;;
+    --no-usb-mic) AVIAN_USB_MIC=0 ;;
+    *) install_usage ;;
+  esac
+  shift
+done
 export AVIAN_INSTALL_EDUCATORS
 exec > >(tee -i "installation-$(date +%F).txt") 2>&1 # Make log
 set -e # exit installation if anything fails
@@ -77,5 +82,11 @@ install_birdnet
 cd $my_dir/scripts || exit 1
 
 ./install_language_label.sh || exit 1
+
+# Optional AvianVisitors extras. None of them can fail the base install.
+if [ "$AVIAN_USB_MIC" = 1 ]; then
+  ./avian_mic_setup.sh --auto \
+    || echo "USB mic setup was skipped; run ~/BirdNET-Pi/scripts/avian_mic_setup.sh --list later."
+fi
 
 exit 0
