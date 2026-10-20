@@ -1,0 +1,4 @@
+# Light dependencies for avian/scripts/: build_masks.py, import_bundle.py and
+# pregen.py's PNG publishing. setup_venv.sh installs these into ~/avian-venv.
+# Capped below 12 so the same venv can also host the frame's shoot.py.
+Pillow>=10.0,<12

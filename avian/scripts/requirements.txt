@@ -3,6 +3,8 @@
 # cutout.py needs rembg + onnxruntime for the
 # BiRefNet matting model. build_masks.py needs Pillow. verify.py is
 # standard-library only.
-Pillow>=10.0
+# Install into ~/avian-venv (setup_venv.sh --cutout), never BirdNET's own venv:
+# its streamlit needs pillow<12.
+-r requirements-base.txt
 rembg>=2.0.76
 onnxruntime>=1.16
