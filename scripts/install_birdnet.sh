@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
 # Install BirdNET script
 install_usage() {
-  echo "Usage: $0 [--educators] [--no-usb-mic]" >&2
+  echo "Usage: $0 [--educators] [--no-usb-mic] [--illustrations <URL>]" >&2
   exit 64
 }
 AVIAN_INSTALL_EDUCATORS=0
 AVIAN_USB_MIC=1
+AVIAN_ILLUSTRATIONS_URL=
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --educators) AVIAN_INSTALL_EDUCATORS=1 ;;
     --no-usb-mic) AVIAN_USB_MIC=0 ;;
+    --illustrations)
+      [ "$#" -ge 2 ] && [ -n "$2" ] || install_usage
+      AVIAN_ILLUSTRATIONS_URL=$2
+      shift
+      ;;
     *) install_usage ;;
   esac
   shift
@@ -87,6 +93,10 @@ cd $my_dir/scripts || exit 1
 if [ "$AVIAN_USB_MIC" = 1 ]; then
   ./avian_mic_setup.sh --auto \
     || echo "USB mic setup was skipped; run ~/BirdNET-Pi/scripts/avian_mic_setup.sh --list later."
+fi
+if [ -n "$AVIAN_ILLUSTRATIONS_URL" ]; then
+  "$my_dir/avian/scripts/import_bundle.sh" "$AVIAN_ILLUSTRATIONS_URL" \
+    || echo "Illustration import failed; retry with ~/BirdNET-Pi/avian/scripts/import_bundle.sh <URL>."
 fi
 
 exit 0

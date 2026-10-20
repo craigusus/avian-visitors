@@ -84,7 +84,7 @@ def selected_paths(directory: Path, slugs) -> list[Path]:
         flight = directory / f"{slug}-2.png"
         if not slug.endswith("-2") and flight.exists():
             paths.append(flight)
-    return paths
+    return list(dict.fromkeys(paths))  # "x x-2" names the flight pose twice
 
 
 def cut_one(path: Path, directory: Path, session, margin: float):

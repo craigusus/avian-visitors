@@ -431,7 +431,8 @@ def main() -> int:
               f"({len(cur_d)} entries total)")
         return 0
     print(f"wrote {dims_path} + {masks_path} ({len(dims)} entries each)\n"
-          "cache reminder: if the tables changed, always bump TABLE_VERSION; "
+          "cache reminder (repo commits only; a station busts caches by itself): "
+          "if the tables changed, always bump TABLE_VERSION; "
           "for one corrected species update ART_REVISIONS, or for a regional "
           "or library-wide rebuild bump SKETCH_VERSION + IMG_VERSION")
     return 0

@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 
 installer_usage() {
-  echo "Usage: $0 [--educators] [--no-usb-mic]" >&2
+  echo "Usage: $0 [--educators] [--no-usb-mic] [--illustrations <URL>]" >&2
   exit 64
 }
 installer_args=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --educators|--no-usb-mic) installer_args+=("$1") ;;
+    --illustrations)
+      [ "$#" -ge 2 ] && [ -n "$2" ] || installer_usage
+      installer_args+=("$1" "$2")
+      shift
+      ;;
     *) installer_usage ;;
   esac
   shift
