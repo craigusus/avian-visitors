@@ -5,7 +5,7 @@ import tempfile
 import time
 import unittest
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from scripts.utils import db
 from scripts.utils import notifications
@@ -18,6 +18,9 @@ class TestAppriseNotifications(unittest.TestCase):
 
     def setUp(self):
         db.DB_PATH = self.db_file
+        image = patch('scripts.utils.notifications.fetch_collage_image', return_value=None)
+        image.start()
+        self.addCleanup(image.stop)
 
     @classmethod
     def setUpClass(cls):
@@ -206,6 +209,91 @@ class TestNotifyResult(unittest.TestCase):
             notifications.apobj = None
 
 
+class TestCollageImage(unittest.TestCase):
+    """Notifications carry the collage illustration, not a Flickr photo."""
+
+    PNG = b'\x89PNG\r\n\x1a\n' + b'bird'
+
+    def setUp(self):
+        self.files = []
+        for name, content in (('config', 'json://localhost/x'), ('body', '$time - A $comname {"img":"$flickrimage"} $image')):
+            handle = tempfile.NamedTemporaryFile('w', delete=False, suffix=name)
+            handle.write(content)
+            handle.close()
+            self.files.append(handle.name)
+        self.saved = (notifications.APPRISE_CONFIG, notifications.APPRISE_BODY)
+        notifications.APPRISE_CONFIG, notifications.APPRISE_BODY = self.files
+        notifications.species_last_notified.clear()
+        self.settings = Settings.with_defaults()
+        self.settings['APPRISE_NOTIFY_EACH_DETECTION'] = '1'
+        self.settings['BIRDNETPI_URL'] = 'http://birdnet.local/'
+        self.sent = []
+
+    def tearDown(self):
+        notifications.APPRISE_CONFIG, notifications.APPRISE_BODY = self.saved
+        notifications.species_last_notified.clear()
+        for path in self.files:
+            os.remove(path)
+
+    def response(self, status=200, content_type='image/png', content=PNG):
+        response = Mock(status_code=status, content=content)
+        response.headers = {'Content-Type': content_type}
+        return response
+
+    def record(self, body, title, attached=""):
+        image = None
+        if attached:
+            with open(attached, 'rb') as f:
+                image = f.read()
+        self.sent.append((body, attached, image))
+        return True
+
+    def run_detection(self, response):
+        params = TestAppriseNotifications.get_default_params(None)
+        with patch('scripts.utils.helpers._load_settings', return_value=self.settings), \
+                patch.object(notifications.requests, 'get', return_value=response) as get, \
+                patch.object(notifications, 'notify', side_effect=self.record):
+            sendAppriseNotifications(**params)
+        return get
+
+    def test_attaches_the_collage_illustration_and_cleans_up(self):
+        get = self.run_detection(self.response())
+        url = get.call_args[0][0]
+        self.assertEqual(url, 'http://localhost/avian/api/cutout.php?sci=Myiarchus+crinitus')
+        self.assertNotIn('/api/v1/image', url)
+        self.assertEqual(len(self.sent), 1)
+        body, attached, image = self.sent[0]
+        self.assertTrue(attached.endswith('.png'))
+        self.assertEqual(image, self.PNG)
+        self.assertFalse(os.path.exists(attached), 'the temporary illustration is removed')
+        link = 'http://birdnet.local/avian/api/cutout.php?sci=Myiarchus+crinitus'
+        self.assertEqual(body, f'06:06:06 - A Great Crested Flycatcher {{"img":"{link}"}} {link}')
+
+    def test_missing_or_invalid_image_still_notifies_without_attachment(self):
+        for response in (self.response(status=404, content_type='text/plain', content=b'missing'),
+                         self.response(content=b'<html>not a png</html>'),
+                         self.response(content_type='text/html')):
+            self.sent.clear()
+            notifications.species_last_notified.clear()
+            self.run_detection(response)
+            self.assertEqual(len(self.sent), 1)
+            self.assertEqual(self.sent[0][1], '')
+
+    def test_unreachable_station_still_notifies(self):
+        params = TestAppriseNotifications.get_default_params(None)
+        with patch('scripts.utils.helpers._load_settings', return_value=self.settings), \
+                patch.object(notifications.requests, 'get', side_effect=OSError('refused')), \
+                patch.object(notifications, 'notify', side_effect=self.record):
+            sendAppriseNotifications(**params)
+        self.assertEqual([attached for _, attached, _ in self.sent], [''])
+
+    def test_no_fetch_when_nothing_is_sent(self):
+        self.settings['APPRISE_NOTIFY_EACH_DETECTION'] = '0'
+        get = self.run_detection(self.response())
+        get.assert_not_called()
+        self.assertEqual(self.sent, [])
+
+
 class TestSendTestNotification(unittest.TestCase):
     """The admin panel's test button trusts this script's exit code."""
 
@@ -239,6 +327,7 @@ class TestSendTestNotification(unittest.TestCase):
         with patch.object(self.sender, 'get_settings', return_value=self.settings), \
                 patch.object(self.sender.notifications, 'get_settings', return_value=self.settings), \
                 patch.object(self.sender, 'get_latest', return_value=None), \
+                patch.object(self.sender.notifications, 'fetch_collage_image', return_value=None), \
                 patch.object(self.sender.notifications, 'notify', return_value=delivered) as notify:
             return self.sender.main(args), notify
 

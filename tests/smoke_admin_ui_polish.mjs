@@ -1076,6 +1076,6 @@ gateSelectors.forEach(function (selector) {
 });
 
 assert.match(html, /styles\.css\?v=r197/, 'the polished styles have a fresh cache key');
-assert.match(html, /apt\.js\?v=r243/, 'the polished behavior has a fresh cache key');
+assert.match(html, /apt\.js\?v=r244/, 'the polished behavior has a fresh cache key');
 
 console.log('admin UI polish smoke: ok');

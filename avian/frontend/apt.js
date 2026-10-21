@@ -8004,7 +8004,8 @@
         + '        aria-label="' + t[1] + '" aria-checked="' + (triggers[t[0]] ? 'true' : 'false') + '"></button>'
         + '    </div>';
     }).join('');
-    var variables = (state.template_variables || []).map(function (name) { return '$' + name; }).join(' ');
+    var variables = (state.template_variables || []).map(function (name) { return '$' + name; }).join(' ')
+      + '. Each alert attaches the bird illustration; $image is a link to it.';
     return ''
       + '<div class="notify-control" data-notify-control>'
       + head
