@@ -136,7 +136,7 @@ apply_card() {
   sudo systemctl try-restart birdnet_recording.service
   echo "BirdNET now records from $wanted; PulseAudio ignores card '$card'."
   echo 'Note: the live audio stream is off while BirdNET uses a direct ALSA card.'
-  echo "Check the level with: $0 --test"
+  echo "Check the level with: ${0##*/} --test"
 }
 
 auto_setup() {
@@ -146,7 +146,7 @@ auto_setup() {
   case "$count" in
     0)
       echo 'No USB microphone found; leaving REC_CARD unchanged.'
-      echo "Plug one in and run: $0 --auto  (or --list to see other cards)"
+      echo "Plug one in and run: ${0##*/} --auto  (or --list to see other cards)"
       ;;
     1) apply_card "${usb%% *}" "$force" ;;
     *)

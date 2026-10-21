@@ -213,7 +213,7 @@ An optional e-ink frame puts the bird collage on a panel by your window. Build i
 
 ### Detections are all "Human, 0.0"
 
-BirdNET is recording silence. This usually happens with combined USB mic and headphone adapters: PulseAudio exposes only their output, so recordings come from the headphone "monitor" instead of the mic. Check what is being recorded:
+`Human, 0.0` in the analysis log is BirdNET-Pi's privacy filter. Any 3-second chunk with a "Human" label among its top 10 predictions is blanked, and so are the chunks either side of it. Some masked chunks are normal on a quiet mic: with little sound to go on, Human labels rank high, and a bird calling clearly still gets through. If every chunk is masked and nothing is ever detected, BirdNET is probably recording silence. This usually happens with combined USB mic and headphone adapters: PulseAudio exposes only their output, so recordings come from the headphone "monitor" instead of the mic. Check what is being recorded:
 
 ```bash
 ~/BirdNET-Pi/scripts/avian_mic_setup.sh --list    # capture cards and the current REC_CARD
@@ -227,6 +227,8 @@ To record straight from the USB mic, bypassing PulseAudio, run:
 ```
 
 This adds a udev rule so PulseAudio ignores that card, and sets `REC_CARD=plughw:CARD=<id>,DEV=0` in `/etc/birdnet/birdnet.conf`. Using the card id, not its number, keeps it working if cards are renumbered. Re-run it after swapping mics. `--force` replaces a `REC_CARD` you set yourself, and `--remove` undoes the change. While BirdNET records from a direct ALSA card, the live audio stream is off. If detections still look silent, reboot so no older PulseAudio instance holds the card.
+
+If `--test` shows a level but very little gets through, check the capture gain with `amixer -c <id>` (raise the `Mic` capture control if it is below 100%). Also keep the mic away from voices, TVs and radios, which the filter blanks along with their neighbouring chunks. A mic placed outside, or closer to where birds call, catches fainter birds.
 
 ### The collage is missing local birds
 

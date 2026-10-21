@@ -347,6 +347,9 @@ def list_imports() -> int:
 
 
 def main() -> int:
+    # Piped through the installer's tee, block buffering would print our lines
+    # after git's and build_masks.py's own output.
+    sys.stdout.reconfigure(line_buffering=True)
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("source", nargs="?", help="git URL, GitHub tree URL, .zip URL, or local zip/folder")
