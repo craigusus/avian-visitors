@@ -201,7 +201,7 @@ def build(source, output):
             chosen.append({'scientific_name': name, 'common_name': bird['common_name'], 'pose': pose['id'], 'sha256': pose['sha256'], 'bytes': pose['bytes']})
     catalog = {
         'id': PACK_ID, 'version': '1.0.0', 'name': manifest['name'], 'description': manifest['description'],
-        'creator': manifest['attribution']['creator'], 'repository_url': 'https://github.com/Twarner491/AvianVisitors',
+        'creator': manifest['attribution']['creator'], 'repository_url': 'https://github.com/craigusus/avian-visitors',
         'coverage': {'label': 'North America', 'group': 'North America', 'region_codes': ['US', 'CA', 'MX']},
         'style': {**manifest['style'], 'category': 'Traditional', 'tags': ['audubon', 'historical', 'engraving', 'flowers', 'natural-history']},
         'species_count': len(species), 'species': [b['scientific_name'] for b in species], 'review': 'official',

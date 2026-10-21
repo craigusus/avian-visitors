@@ -87,7 +87,7 @@ class OfficialBundlePublicationTests(unittest.TestCase):
             "license": {"spdx": "CC-BY-NC-SA-4.0"},
             "attribution": {
                 "creator": "Avian Visitors",
-                "source_url": "https://github.com/Twarner491/AvianVisitors",
+                "source_url": "https://github.com/craigusus/avian-visitors",
             },
             "provenance": {"method": "manual", "review": "human-reviewed"},
         }

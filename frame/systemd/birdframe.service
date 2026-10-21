@@ -1,6 +1,6 @@
 [Unit]
 Description=AvianVisitors e-ink frame update
-Documentation=https://github.com/Twarner491/AvianVisitors
+Documentation=https://github.com/craigusus/avian-visitors
 Wants=network-online.target
 After=network-online.target
 

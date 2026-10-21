@@ -210,7 +210,7 @@ ANTI_REF_TRIGGERS = (
     (SWALLOW_GENERA, "barnswallow", "Hirundo rustica"),
 )
 
-USER_AGENT = "AvianVisitors/1.0 (https://github.com/Twarner491/AvianVisitors)"
+USER_AGENT = "AvianVisitors/1.0 (https://github.com/craigusus/avian-visitors)"
 
 
 def slugify(sci: str) -> str:

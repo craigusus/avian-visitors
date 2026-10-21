@@ -116,7 +116,7 @@
       searchTerms: ["western united states", "western canada", "west coast"],
       species: 333,
       contributor: "Avian Visitors",
-      sourceUrl: "https://github.com/Twarner491/AvianVisitors",
+      sourceUrl: "https://github.com/craigusus/avian-visitors",
       official: true,
       localStyle: "woodblock",
       availability: "installable",
@@ -150,7 +150,7 @@
       searchTerms: ["western united states", "western canada", "west coast"],
       species: 333,
       contributor: "Avian Visitors",
-      sourceUrl: "https://github.com/Twarner491/AvianVisitors",
+      sourceUrl: "https://github.com/craigusus/avian-visitors",
       official: true,
       localStyle: "",
       availability: "installable",
@@ -178,7 +178,7 @@
     region: "North America", regionGroup: "North America", regionCodes: ["US", "CA", "MX"],
     style: "Birds of America", styleCategory: "Traditional", styleTags: ["audubon", "historical", "flowers"],
     searchTerms: ["audubon", "birds of america"], species: 439, contributor: "Avian Visitors",
-    contributorLogin: "Twarner491", sourceUrl: "https://avianvisitors.com/bundles/birds-of-america",
+    contributorLogin: "craigusus", sourceUrl: "https://avianvisitors.com/bundles/birds-of-america",
     official: true, localStyle: "", availability: "installable", installable: true,
     previewUrl: "/assets/bundle-catalog/bundle-previews/birds-of-america-cover.png", previews: [],
     version: "1.0.0", license: "LicenseRef-NoC-US", archiveBytes: 820343429,
@@ -842,7 +842,7 @@
     strip.setAttribute("role", "region");
     strip.setAttribute("aria-label", "Available regions and contributors. Scroll horizontally for more.");
     packs.forEach((pack) => {
-      const login = pack.official ? "Twarner491" : githubLogin(pack.contributorLogin);
+      const login = pack.official ? "craigusus" : githubLogin(pack.contributorLogin);
       const item = document.createElement(login ? "a" : "span");
       item.className = "style-region";
       if (login) {
@@ -1612,7 +1612,7 @@
           sharing_ready: false,
           authenticated: true,
           preview: true,
-          user: { login: "Twarner491" },
+          user: { login: "craigusus" },
           csrf: "",
         };
         syncShareLauncher();
@@ -1757,7 +1757,7 @@
           sharing_ready: false,
           authenticated: false,
           preview: true,
-          user: { login: "Twarner491" },
+          user: { login: "craigusus" },
           csrf: "",
         } : {
           configured: false,
@@ -1799,7 +1799,7 @@
       sharing_ready: false,
       authenticated: false,
       preview: true,
-      user: { login: "Twarner491" },
+      user: { login: "craigusus" },
       csrf: "",
     };
     document.querySelector("#share-copy").textContent = "Sign in, choose a ZIP bundle or PNGs, then review the details.";

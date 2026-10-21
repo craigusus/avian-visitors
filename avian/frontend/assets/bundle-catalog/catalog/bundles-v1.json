@@ -10,7 +10,7 @@
       "name": "Japanese Woodblock",
       "description": "The original hand-reviewed Avian Visitors illustration set.",
       "creator": "Avian Visitors",
-      "repository_url": "https://github.com/Twarner491/AvianVisitors",
+      "repository_url": "https://github.com/craigusus/avian-visitors",
       "coverage": {
         "label": "Western North America",
         "group": "North America",
@@ -100,7 +100,7 @@
       "name": "Evolutionary Impressionist",
       "description": "333 species for Western North America.",
       "creator": "Avian Visitors",
-      "repository_url": "https://github.com/Twarner491/AvianVisitors",
+      "repository_url": "https://github.com/craigusus/avian-visitors",
       "coverage": {
         "label": "Western North America",
         "group": "North America",
@@ -237,7 +237,7 @@
           "scientific_name": "Archilochus colubris"
         }
       ],
-      "repository_url": "https://github.com/Twarner491/AvianVisitors",
+      "repository_url": "https://github.com/craigusus/avian-visitors",
       "review": "official",
       "species_count": 439,
       "style": {

@@ -253,7 +253,7 @@ if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
 // Wikipedia's REST API asks for a contact-able identifier. Override
 // via the AV_USER_AGENT env var (set in /etc/php/*/fpm/pool.d/www.conf
 // or your shell) if your install hammers their endpoint at scale.
-$ua = getenv('AV_USER_AGENT') ?: 'AvianVisitors/1.0 (+https://github.com/Twarner491/AvianVisitors)';
+$ua = getenv('AV_USER_AGENT') ?: 'AvianVisitors/1.0 (+https://github.com/craigusus/avian-visitors)';
 $ctx = stream_context_create([
     'http' => ['header' => "User-Agent: $ua\r\n", 'timeout' => 12],
 ]);

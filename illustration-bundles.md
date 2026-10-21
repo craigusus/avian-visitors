@@ -2,7 +2,7 @@
 
 **\* This index is being retired. Bundles are now shared through [avianvisitors.com/bundles](https://avianvisitors.com/bundles). The old community links are retained below during migration.**
 
-Do not add new bundles here. See the [README](README.md#3-illustration-bundles) for the new bundle workflow, and follow the tracked [migration checklist](docs/bundle-catalog-migration.md) before removing this file.
+Do not add new bundles here. See the [README](README.md#3-illustration-bundles) for the new bundle workflow.
 
 The main repo ships a Western-US set reviewed by hand. Other people have generated sets for their own regions and keep them in their forks. These links are retained during the catalog migration.
 

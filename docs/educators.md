@@ -15,7 +15,7 @@ Educators mode is optional and stays off until you enable it.
 For a new station, add `--educators` to the installer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Twarner491/AvianVisitors/avian-visitors/newinstaller.sh | bash -s -- --educators
+curl -fsSL https://raw.githubusercontent.com/craigusus/avian-visitors/avian-visitors/newinstaller.sh | bash -s -- --educators
 ```
 
 For an existing station, first use **Tools > Pull latest** or follow the [update instructions](../README.md#updating-an-existing-station). Then run:
@@ -82,7 +82,7 @@ Saved-view downloads are available only through a direct connection to the stati
 
 ## Keep exploring
 
-- [Avian Visitors source and setup](https://github.com/Twarner491/AvianVisitors)
+- [Avian Visitors source and setup](https://github.com/craigusus/avian-visitors)
 - [BirdNET-Pi overview](https://birdnet.cornell.edu/birdnet-pi/)
 - [BirdNET learning activities for K-12 classrooms](https://birdnet.cornell.edu/k12/)
 - [BirdNET tutorials and further reading](https://birdnet.cornell.edu/resources/)

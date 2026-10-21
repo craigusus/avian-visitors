@@ -49,7 +49,7 @@ _art_spec.loader.exec_module(capture_art)
 # the repo's raw GitHub URLs: a fresh install needs no illustration redeploy,
 # upstream additions arrive with a git pull, and cutouts you generate and copy
 # into the clone render even before they reach GitHub.
-RAW_ILLUSTRATIONS = ("https://raw.githubusercontent.com/Twarner491/AvianVisitors/"
+RAW_ILLUSTRATIONS = ("https://raw.githubusercontent.com/craigusus/avian-visitors/"
                      "avian-visitors/avian/assets/illustrations/")
 
 # Hide the controls and the other views, freeze animations. Titles + collage

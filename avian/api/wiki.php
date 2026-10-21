@@ -511,7 +511,7 @@ if (!preg_match('/^[A-Za-z]{2,40}(?:[ ][a-z]{2,40}){1,3}$/', $sci)) {
     exit;
 }
 
-$ua = getenv('AV_USER_AGENT') ?: 'AvianVisitors/1.0 (+https://github.com/Twarner491/AvianVisitors)';
+$ua = getenv('AV_USER_AGENT') ?: 'AvianVisitors/1.0 (+https://github.com/craigusus/avian-visitors)';
 $ctx = stream_context_create([
     'http' => ['header' => "User-Agent: $ua\r\n", 'timeout' => 8],
 ]);

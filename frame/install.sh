@@ -604,7 +604,7 @@ fi
   {
     printf "%s\n" "[Unit]"
     printf "%s\n" "Description=AvianVisitors e-ink frame update"
-    printf "%s\n" "Documentation=https://github.com/Twarner491/AvianVisitors"
+    printf "%s\n" "Documentation=https://github.com/craigusus/avian-visitors"
     printf "%s\n" "Wants=network-online.target"
     printf "%s\n\n" "After=network-online.target"
     printf "%s\n" "[Service]"
