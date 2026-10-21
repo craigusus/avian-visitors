@@ -50,6 +50,7 @@ exit 0
 EOF
 cat >/usr/local/bin/systemd-run <<'EOF'
 #!/usr/bin/env bash
+printf '%s\n' "$@" >/tmp/avian-maintenance-smoke/systemd-run.args
 while [ "$#" -gt 0 ] && [ "$1" != /usr/local/sbin/avian-maintenance-control ]; do
   shift
 done
@@ -72,6 +73,21 @@ chmod 0755 /usr/local/bin/systemctl /usr/local/bin/systemd-run
 [ -e "$test_root/update.called" ] || fail 'fixed update helper did not run'
 [ ! -e "$test_root/mutable-update.called" ] \
   || fail 'maintenance executed checkout update code as root'
+grep -qx -- '--no-block' "$test_root/systemd-run.args" \
+  || fail 'maintenance would hold the web request open for the whole update'
+
+cat >/usr/local/sbin/avian-update-control <<'EOF'
+#!/usr/bin/env bash
+echo 'progress noise' >&2
+echo 'Update stopped: origin must be https://example.invalid/repo' >&2
+exit 1
+EOF
+chown root:root /usr/local/sbin/avian-update-control
+chmod 0755 /usr/local/sbin/avian-update-control
+/usr/local/sbin/avian-maintenance-control update >/dev/null
+/usr/local/sbin/avian-maintenance-control status \
+  | grep -q '"detail":"Update stopped: origin must be https://example.invalid/repo"' \
+  || fail 'the helper refusal was not shown in Tools'
 
 cat >/usr/local/sbin/avian-update-control <<'EOF'
 #!/usr/bin/env bash

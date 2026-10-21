@@ -93,7 +93,7 @@ helper_for_action() {
 }
 
 run_work() {
-  local action=$1 helper started rc=0
+  local action=$1 helper started errors rc=0
   helper=$(helper_for_action "$action") || return $?
   if ! safe_root_helper "$helper"; then
     started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -103,17 +103,29 @@ run_work() {
 
   started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   write_state running "$action" running "$started" ''
-  "$helper" || rc=$?
+  errors=$(mktemp "$state_dir/.errors.XXXXXX") || errors=/dev/null
+  "$helper" 2>"$errors" || rc=$?
+  [ "$errors" = /dev/null ] || { cat "$errors" >&2; }
   if [ "$rc" -eq 0 ]; then
     write_state complete "$action" complete "$started" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   else
-    write_state failed "$action" "exit $rc" "$started" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    write_state failed "$action" "$(failure_detail "$errors" "$rc")" "$started" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   fi
+  [ "$errors" = /dev/null ] || rm -f -- "$errors"
   return "$rc"
 }
 
+# The helpers explain a refusal on one stderr line. Show only that line in
+# Tools; anything else stays in the journal.
+failure_detail() {
+  local errors=$1 rc=$2 line
+  line=$(grep -E '^(Update|Service refresh) stopped: ' -- "$errors" 2>/dev/null | tail -n 1 \
+    | tr -d '\000-\037\177' | cut -c1-200) || line=''
+  printf '%s' "${line:-exit $rc}"
+}
+
 start_work() {
-  local action=$1 active started
+  local action=$1 active started start_error
   helper_for_action "$action" >/dev/null || fail 'unknown action'
   active=$(systemctl is-active "$unit.service" 2>/dev/null || true)
   if [ "$active" = active ] || [ "$active" = activating ]; then
@@ -122,11 +134,14 @@ start_work() {
   systemctl reset-failed "$unit.service" >/dev/null 2>&1 || true
   started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   write_state queued "$action" queued "$started" ''
-  if ! systemd-run --quiet --collect --unit="$unit" \
+  # --no-block returns once the job is queued. Without it, a oneshot unit
+  # holds the request open for the whole update and reports any failure as
+  # a failure to start. Tools polls status for progress and the result.
+  if ! start_error=$(systemd-run --quiet --no-block --collect --unit="$unit" \
     --property=Type=oneshot --property=UMask=0077 \
-    "$CONTROL_HELPER" __work "$action"; then
+    "$CONTROL_HELPER" __work "$action" 2>&1); then
     write_state failed "$action" 'could not start' "$started" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    fail 'could not start maintenance'
+    fail "could not start maintenance: $(printf '%s' "$start_error" | head -n 1 | cut -c1-200)"
   fi
   print_status
 }
