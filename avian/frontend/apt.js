@@ -13803,7 +13803,14 @@
             paintMaintenance(body);
           });
         }).catch(function (error) {
-          if (!adminAuthCancelled(error) && window.console) console.warn('maintenance status failed', error);
+          if (adminAuthCancelled(error)) return;
+          if (window.console) console.warn('maintenance status failed', error);
+          // An update reloads the web server, so a status check can fail
+          // mid-run. Keep checking while a card still shows work in progress.
+          if (adminBody.querySelector('[data-maintenance-card][aria-busy="true"]')) {
+            clearTimeout(maintenancePoll);
+            maintenancePoll = setTimeout(loadMaintenance, 3000);
+          }
         });
     }
     adminBody.querySelectorAll('[data-maintenance-action]').forEach(function (button) {
