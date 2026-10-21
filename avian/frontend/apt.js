@@ -7969,6 +7969,292 @@
       + '</div>';
   }
 
+  var NOTIFY_TRIGGERS = [
+    ['notify_each', 'Every detection', ''],
+    ['notify_first_today', 'First of a species today', ''],
+    ['notify_new_species', 'Rare this week', 'seen 5 or fewer times in 7 days'],
+    ['weekly_report', 'Weekly report', ''],
+  ];
+  function notificationsRow(state) {
+    state = state || {};
+    var available = state.ok !== false;
+    var details = 'Sends alerts through Apprise to Discord, MQTT, Home Assistant, ntfy, Telegram, email and more. '
+      + 'Saved service URLs contain passwords or tokens, so they are shown masked.';
+    var head = ''
+      + '  <div class="menu-row birdweather-head">'
+      + '    <div class="access-copy"><span class="label">Notifications</span>'
+      + settingsInfoMarkup('notifyTip', 'About notifications', details)
+      + '    </div>'
+      + '    <div class="birdweather-head-actions">'
+      + '      <button type="button" class="settings-disclosure" data-notify-disclosure aria-controls="notifyDetails" aria-expanded="false"' + (available ? '' : ' disabled') + '>details</button>'
+      + '    </div>'
+      + '  </div>';
+    if (!available) {
+      return '<div class="notify-control">' + head
+        + '  <p class="birdweather-unavailable" role="status">'
+        + escHtml(state.update_required ? 'Update the station (Tools > Pull latest) to manage notifications here.' : 'Notification controls are unavailable on this station.')
+        + '</p></div>';
+    }
+    var triggers = state.triggers || {};
+    var switches = NOTIFY_TRIGGERS.map(function (t) {
+      return ''
+        + '    <div class="menu-row">'
+        + '      <div><span class="label">' + t[1] + '</span>' + (t[2] ? '<span class="hint">' + t[2] + '</span>' : '') + '</div>'
+        + '      <button type="button" class="switch" role="switch" data-notify-trigger="' + t[0] + '"'
+        + '        aria-label="' + t[1] + '" aria-checked="' + (triggers[t[0]] ? 'true' : 'false') + '"></button>'
+        + '    </div>';
+    }).join('');
+    var variables = (state.template_variables || []).map(function (name) { return '$' + name; }).join(' ');
+    return ''
+      + '<div class="notify-control" data-notify-control>'
+      + head
+      + '  <div id="notifyDetails" class="notify-details-shell" data-notify-details hidden>'
+      + '  <div class="birdweather-details notify-details">'
+      + '    <div class="notify-section">'
+      + '      <span class="label">Services</span>'
+      + '      <ul class="notify-urls" data-notify-urls></ul>'
+      + '      <form class="notify-inline" data-notify-add>'
+      + '        <input type="text" data-notify-url aria-label="Apprise URL" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="1024" placeholder="discord://… or mqtt://…">'
+      + '        <button type="submit" class="chip">add</button>'
+      + '      </form>'
+      + '      <a class="notify-help" href="https://github.com/caronc/apprise/wiki" target="_blank" rel="noopener noreferrer">Apprise URL formats</a>'
+      + '      <form class="notify-inline" data-notify-reveal-form hidden>'
+      + '        <input type="password" data-notify-reveal-password aria-label="Admin password" autocomplete="current-password" placeholder="admin password">'
+      + '        <button type="submit" class="chip">show</button>'
+      + '        <button type="button" class="chip" data-notify-reveal-cancel>cancel</button>'
+      + '      </form>'
+      + '      <div class="notify-actions">'
+      + '        <button type="button" class="chip" data-notify-reveal' + (state.reveal_available ? '' : ' hidden') + '>reveal URLs</button>'
+      + '        <button type="button" class="chip" data-notify-test>send test</button>'
+      + '      </div>'
+      + '    </div>'
+      + switches
+      + '    <label class="notify-field"><span class="label">Title</span>'
+      + '      <input type="text" data-notify-text="title" maxlength="120" value="' + escHtml(state.title) + '"></label>'
+      + '    <label class="notify-field"><span class="label">Message</span>'
+      + '      <textarea data-notify-text="body" rows="4" maxlength="4000">' + escHtml(state.body) + '</textarea>'
+      + '      <span class="hint">' + escHtml(variables) + '</span></label>'
+      + '    <label class="notify-field"><span class="label">Only these species</span>'
+      + '      <input type="text" data-notify-text="only_species" maxlength="1000" placeholder="comma separated; empty for all" value="' + escHtml(state.only_species) + '"></label>'
+      + '    <label class="notify-field"><span class="label">Never these species</span>'
+      + '      <input type="text" data-notify-text="exclude_species" maxlength="1000" placeholder="comma separated" value="' + escHtml(state.exclude_species) + '"></label>'
+      + '    <label class="notify-field"><span class="label">Seconds between alerts per species</span>'
+      + '      <input type="number" data-notify-cooldown min="0" max="86400" step="1" value="' + (+state.cooldown_seconds || 0) + '"></label>'
+      + '    <p class="lan-auth-status" data-notify-status role="status" aria-live="polite" aria-atomic="true"></p>'
+      + '  </div>'
+      + '  </div>'
+      + '</div>';
+  }
+
+  function wireNotificationsControl(scope, initialState) {
+    var control = scope.querySelector('[data-notify-control]');
+    if (!control || !initialState || initialState.ok === false) return;
+    var state = initialState;
+    var endpoint = './avian/api/notifications.php';
+    var disclosure = control.querySelector('[data-notify-disclosure]');
+    var details = control.querySelector('[data-notify-details]');
+    var list = control.querySelector('[data-notify-urls]');
+    var addForm = control.querySelector('[data-notify-add]');
+    var urlInput = control.querySelector('[data-notify-url]');
+    var revealButton = control.querySelector('[data-notify-reveal]');
+    var revealForm = control.querySelector('[data-notify-reveal-form]');
+    var revealPassword = control.querySelector('[data-notify-reveal-password]');
+    var testButton = control.querySelector('[data-notify-test]');
+    var cooldown = control.querySelector('[data-notify-cooldown]');
+    var status = control.querySelector('[data-notify-status]');
+    var queue = Promise.resolve();
+    var revealed = null;
+    var revealTimer = 0;
+
+    function note(message, error) {
+      status.textContent = message || '';
+      status.classList.toggle('err', !!error);
+    }
+    function hideRevealed() {
+      clearTimeout(revealTimer);
+      revealed = null;
+      renderUrls();
+    }
+    function renderUrls() {
+      list.textContent = '';
+      var urls = state.urls || [];
+      if (!urls.length) {
+        var empty = document.createElement('li');
+        empty.className = 'hint';
+        empty.textContent = 'No services yet.';
+        list.appendChild(empty);
+      }
+      urls.forEach(function (entry) {
+        var item = document.createElement('li');
+        var text = document.createElement('code');
+        text.textContent = revealed && revealed[entry.id] ? revealed[entry.id] : entry.scheme + '://…';
+        var remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'chip';
+        remove.textContent = 'remove';
+        remove.setAttribute('aria-label', 'Remove ' + entry.scheme + ' service');
+        remove.addEventListener('click', function () {
+          save({ remove_url_id: entry.id }, 'removed');
+        });
+        item.appendChild(text);
+        item.appendChild(remove);
+        list.appendChild(item);
+      });
+      revealButton.disabled = !urls.length;
+      testButton.disabled = !urls.length;
+    }
+    function syncFields() {
+      var triggers = state.triggers || {};
+      control.querySelectorAll('[data-notify-trigger]').forEach(function (button) {
+        button.setAttribute('aria-checked', triggers[button.dataset.notifyTrigger] ? 'true' : 'false');
+      });
+      control.querySelectorAll('[data-notify-text]').forEach(function (field) {
+        if (document.activeElement !== field) field.value = state[field.dataset.notifyText] || '';
+      });
+      if (document.activeElement !== cooldown) cooldown.value = +state.cooldown_seconds || 0;
+      renderUrls();
+    }
+    function post(body) {
+      return adminFetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Avian-Action': '1' },
+        body: JSON.stringify(body),
+      }).then(function (response) {
+        return response.json().catch(function () { return {}; }).then(function (data) {
+          return { ok: response.ok && data.ok === true, data: data };
+        });
+      });
+    }
+    // Writes run one at a time; each returns the canonical saved state.
+    function save(patch, done) {
+      note('saving…');
+      queue = queue.then(function () {
+        return post(patch).then(function (result) {
+          if (result.ok) {
+            state = result.data;
+            if (revealed) hideRevealed();
+            syncFields();
+            note(done || 'saved');
+            return true;
+          }
+          if (result.data.settings) state = result.data.settings;
+          syncFields();
+          note(result.data.error || 'could not save', true);
+          return false;
+        });
+      }).catch(function (error) {
+        syncFields();
+        if (!adminAuthCancelled(error)) note('could not save', true);
+        return false;
+      });
+      return queue;
+    }
+
+    disclosure.addEventListener('click', function () {
+      var open = details.hidden;
+      details.hidden = !open;
+      disclosure.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    control.querySelectorAll('[data-notify-trigger]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var patch = {};
+        patch[button.dataset.notifyTrigger] = button.getAttribute('aria-checked') !== 'true';
+        button.setAttribute('aria-checked', patch[button.dataset.notifyTrigger] ? 'true' : 'false');
+        save(patch);
+      });
+    });
+    control.querySelectorAll('[data-notify-text]').forEach(function (field) {
+      field.addEventListener('change', function () {
+        var patch = {};
+        patch[field.dataset.notifyText] = field.value;
+        save(patch);
+      });
+    });
+    cooldown.addEventListener('change', function () {
+      var value = Number(cooldown.value);
+      if (!Number.isInteger(value) || value < 0 || value > 86400) {
+        note('use 0 to 86400 seconds', true);
+        cooldown.value = +state.cooldown_seconds || 0;
+        return;
+      }
+      save({ cooldown_seconds: value });
+    });
+    addForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var url = urlInput.value.trim();
+      if (!url) return;
+      save({ add_url: url }, 'added').then(function (ok) {
+        if (ok) urlInput.value = '';
+      });
+    });
+    testButton.addEventListener('click', function () {
+      testButton.disabled = true;
+      note('sending…');
+      post({ action: 'test' }).then(function (result) {
+        note(result.ok ? 'test sent' : (result.data.error || 'test failed'), !result.ok);
+      }).catch(function (error) {
+        if (!adminAuthCancelled(error)) note('test failed', true);
+      }).then(function () {
+        testButton.disabled = !(state.urls || []).length;
+      });
+    });
+    revealButton.addEventListener('click', function () {
+      if (revealed) {
+        hideRevealed();
+        revealButton.textContent = 'reveal URLs';
+        return;
+      }
+      revealForm.hidden = false;
+      revealPassword.focus();
+    });
+    control.querySelector('[data-notify-reveal-cancel]').addEventListener('click', function () {
+      revealPassword.value = '';
+      revealForm.hidden = true;
+    });
+    revealForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var authorization = adminBasicAuthorization(revealPassword.value);
+      revealPassword.value = '';
+      if (!authorization) {
+        note('enter the admin password', true);
+        return;
+      }
+      // A direct request: a wrong password here must not lock the drawer.
+      fetch(endpoint + '?reveal=1', {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Authorization': authorization, 'X-Avian-Credential': '1' },
+      }).then(function (response) {
+        return response.json().catch(function () { return {}; }).then(function (data) {
+          if (!response.ok || data.ok !== true) {
+            note(response.status === 401 ? 'wrong password' : (data.error || 'could not reveal URLs'), true);
+            return;
+          }
+          revealForm.hidden = true;
+          revealed = {};
+          (data.urls || []).forEach(function (entry) {
+            if (entry.url) revealed[entry.id] = entry.url;
+          });
+          renderUrls();
+          revealButton.textContent = 'hide URLs';
+          note('URLs hide again in 60 seconds');
+          clearTimeout(revealTimer);
+          revealTimer = setTimeout(function () {
+            hideRevealed();
+            revealButton.textContent = 'reveal URLs';
+            note('');
+          }, 60000);
+        });
+      }).catch(function () { note('could not reveal URLs', true); });
+    });
+
+    if (state.unsupported_lines > 0) {
+      note('apprise.txt has ' + state.unsupported_lines + ' line(s) this panel cannot manage; edit it over SSH to add or remove services', true);
+      addForm.hidden = true;
+    }
+    renderUrls();
+  }
+
   function wireBirdweatherControl(scope, initialState) {
     var control = scope.querySelector('[data-birdweather-control]');
     if (!control || !initialState || initialState.ok === false) return;
@@ -12861,12 +13147,22 @@
           if (adminAuthCancelled(error)) throw error;
           return { ok: false, error: 'archive controls unavailable', failure_kind: 'network' };
         }),
+      adminFetch('./avian/api/notifications.php', { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (body) {
+            return r.ok && body.ok ? body : { ok: false, update_required: !!body.update_required };
+          });
+        }).catch(function (error) {
+          if (adminAuthCancelled(error)) throw error;
+          return { ok: false };
+        }),
     ])
       .then(function (parts) {
         var cfg = parts[0];
         var gen = parts[1] || {};
         var birdweather = parts[2] || { ok: false };
         var archive = parts[3] || { ok: false, failure_kind: 'network' };
+        var notifications = parts[4] || { ok: false };
         var v = cfg.values || {};
         var sec = cfg.secrets || {};
         var security = cfg.security || {};
@@ -12910,6 +13206,7 @@
           + '</section><section class="settings-retention">'
           + lanAuthRow(security)
           + birdweatherRow(birdweather)
+          + notificationsRow(notifications)
           + archiveSettingsRow(archive)
           + settingsToggle('preserve', 'Preserve all recordings', "don't auto-delete", preserve)
           + settingsSegmented('FULL_DISK', 'When disk fills', '', v.FULL_DISK, [
@@ -12944,6 +13241,7 @@
         wirePasswordChange(adminBody);
         wireSettingsAccessDismissal(adminBody);
         wireBirdweatherControl(adminBody, birdweather);
+        wireNotificationsControl(adminBody, notifications);
         wireArchiveControl(adminBody, archive);
         wireSettingsInfo(adminBody);
         if (window.AVIAN_BUNDLES) {

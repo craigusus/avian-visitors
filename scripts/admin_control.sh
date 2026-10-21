@@ -11,7 +11,7 @@ LC_ALL=C
 export LC_ALL
 umask 077
 
-CONTROL_VERSION=3
+CONTROL_VERSION=4
 readonly CADDY_REFRESH=/usr/local/sbin/avian-caddy-refresh
 readonly AUTH_DIR=/var/lib/avian-visitors
 readonly AUTH_LOCK=$AUTH_DIR/admin-auth.lock
@@ -45,7 +45,8 @@ updates_temp=''
 config_temp=''
 password_config_write=0
 cleanup() {
-  rm -f -- "${state_temp:-}" "${rate_temp:-}" "${updates_temp:-}" "${config_temp:-}"
+  rm -f -- "${state_temp:-}" "${rate_temp:-}" "${updates_temp:-}" "${config_temp:-}" \
+    "${apprise_temp:-}"
 }
 trap cleanup EXIT INT TERM HUP
 
@@ -223,8 +224,33 @@ valid_config_value() {
     EBIRD_API_KEY)
       [ "${#value}" -le 120 ] && [[ "$value" =~ ^[A-Za-z0-9_.\/+\=:-]*$ ]]
       ;;
+    APPRISE_NOTIFY_EACH_DETECTION|APPRISE_NOTIFY_NEW_SPECIES|APPRISE_NOTIFY_NEW_SPECIES_EACH_DAY|APPRISE_WEEKLY_REPORT)
+      [ "$value" = 0 ] || [ "$value" = 1 ]
+      ;;
+    APPRISE_MINIMUM_SECONDS_BETWEEN_NOTIFICATIONS_PER_SPECIES)
+      [[ "$value" =~ ^(0|[1-9][0-9]{0,4})$ ]] && [ "$value" -le 86400 ]
+      ;;
+    APPRISE_NOTIFICATION_TITLE) valid_apprise_title "$value" ;;
+    APPRISE_ONLY_NOTIFY_SPECIES_NAMES|APPRISE_ONLY_NOTIFY_SPECIES_NAMES_2)
+      [ "${#value}" -le 1000 ] && ! [[ "$value" =~ [\"\\\`\$[:cntrl:]] ]]
+      ;;
     *) return 1 ;;
   esac
+}
+
+# birdnet.conf is sourced by bash. A title may name notification template
+# variables, which bash expands to empty strings inside double quotes, but
+# never anything that could start a command or parameter substitution.
+readonly APPRISE_TEMPLATE_VARIABLE='\$(comname|sciname|confidencepct|confidence|listenurl|friendlyurl|date|time|week|latitude|longitude|cutoff|sens|overlap|image|flickrimage|reason)'
+valid_apprise_title() {
+  local value=$1 rest
+  [ "${#value}" -le 120 ] || return 1
+  ! [[ "$value" =~ [\"\\\`[:cntrl:]] ]] || return 1
+  rest=$value
+  while [[ "$rest" =~ $APPRISE_TEMPLATE_VARIABLE ]]; do
+    rest=${rest/"${BASH_REMATCH[0]}"/}
+  done
+  [[ "$rest" != *'$'* ]]
 }
 
 safe_root_helper() {
@@ -679,6 +705,99 @@ read_config_values() {
   set_config_values "${values[@]}"
 }
 
+readonly APPRISE_URL_MAX=20
+readonly APPRISE_LINE_MAX=1024
+readonly APPRISE_CONFIG_MAX=16384
+readonly APPRISE_BODY_MAX=4000
+apprise_temp=''
+
+# One URL per line, optionally tagged. Apprise also accepts include
+# directives and YAML documents; neither fits this shape.
+valid_apprise_line() {
+  local line=$1
+  local url_re='^([a-z0-9_-]+(,[a-z0-9_-]+)*=)?[a-z][a-z0-9+.-]{1,31}://[^[:space:][:cntrl:]]+$'
+  local comment_re='^#[^[:cntrl:]]*$'
+  [ "${#line}" -le "$APPRISE_LINE_MAX" ] || return 1
+  [[ "$line" =~ $url_re ]] || [[ "$line" =~ $comment_re ]]
+}
+
+valid_utf8_file() {
+  /usr/bin/iconv -f UTF-8 -t UTF-8 -- "$1" >/dev/null 2>&1
+}
+
+# ~/BirdNET-Pi belongs to the BirdNET-Pi user. Root never opens paths there:
+# reads and writes run as that user, so a planted symlink grants nothing.
+read_user_file() {
+  local name=$1 limit=$2
+  /usr/sbin/runuser -u "$birdnet_user" -- /usr/bin/env -i PATH=/usr/bin:/bin \
+    /bin/sh -c '[ ! -e "$1/$2" ] || head -c "$3" -- "$1/$2"' \
+    sh "$repo_dir" "$name" "$limit"
+}
+
+write_user_file() {
+  local name=$1 source=$2
+  /usr/sbin/runuser -u "$birdnet_user" -- /usr/bin/env -i PATH=/usr/bin:/bin \
+    /bin/sh -c 'umask 077
+      temp=$(mktemp "$1/.$2.XXXXXX") || exit 1
+      if cat >"$temp" && mv -fT -- "$temp" "$1/$2"; then exit 0; fi
+      rm -f -- "$temp"
+      exit 1' \
+    sh "$repo_dir" "$name" <"$source"
+}
+
+json_text() {
+  # json_escape covers the controls that templates may contain. Drop the rest
+  # so a hand-edited file cannot produce invalid JSON.
+  json_escape "$(printf '%s' "$1" | tr -d '\000-\010\013\014\016-\037\177')"
+}
+
+apprise_read_json() {
+  local config body line first=1
+  config=$(read_user_file apprise.txt "$APPRISE_CONFIG_MAX") \
+    || fail "could not read notification settings"
+  body=$(read_user_file body.txt "$APPRISE_BODY_MAX") \
+    || fail "could not read notification settings"
+  printf '{"ok":true,"urls":['
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    [ -n "${line//[[:space:]]/}" ] || continue
+    [ "$first" = 1 ] || printf ','
+    first=0
+    printf '"%s"' "$(json_text "$line")"
+  done <<<"$config"
+  printf '],"body":"%s"}\n' "$(json_text "$body")"
+}
+
+read_apprise_urls() {
+  local count=$1 index line total=0 trailing
+  if ! [[ "$count" =~ ^(0|[1-9][0-9]?)$ ]] || [ "$count" -gt "$APPRISE_URL_MAX" ]; then
+    fail "notification URL count is not allowed"
+  fi
+  apprise_temp=$(mktemp) || fail "could not stage notification URLs"
+  for ((index=0; index<count; index++)); do
+    IFS= read -r -d '' line || fail "incomplete notification URL input"
+    valid_apprise_line "$line" || fail "notification URL $((index + 1)) is not allowed"
+    total=$((total + ${#line} + 1))
+    [ "$total" -le "$APPRISE_CONFIG_MAX" ] || fail "notification URLs are too long"
+    printf '%s\n' "$line" >>"$apprise_temp"
+  done
+  trailing=$(od -An -N1 -tx1) || fail "could not read notification URL input"
+  [ -z "${trailing//[[:space:]]/}" ] || fail "unexpected notification URL input"
+  valid_utf8_file "$apprise_temp" || fail "notification URLs must be UTF-8"
+}
+
+read_apprise_body() {
+  local size
+  apprise_temp=$(mktemp) || fail "could not stage notification template"
+  head -c $((APPRISE_BODY_MAX + 1)) >"$apprise_temp" \
+    || fail "could not read notification template"
+  size=$(stat -c '%s' -- "$apprise_temp") || fail "could not read notification template"
+  [ "$size" -le "$APPRISE_BODY_MAX" ] || fail "notification template is too long"
+  [ "$(tr -d '\000' <"$apprise_temp" | wc -c)" -eq "$size" ] \
+    || fail "notification template is not text"
+  valid_utf8_file "$apprise_temp" || fail "notification template must be UTF-8"
+}
+
 action=${1:-version}
 case "$action" in
   version)
@@ -1085,6 +1204,41 @@ case "$action" in
       fail "password was reset and live audio was closed, but Icecast could not be started again"
     fi
     printf '{"ok":true,"changed":true}\n'
+    ;;
+  apprise-read)
+    [ "$#" -eq 1 ] || fail "apprise-read takes no arguments"
+    apprise_read_json
+    ;;
+  apprise-urls-set-stdin)
+    [ "$#" -eq 2 ] || fail "apprise-urls-set-stdin requires a URL count"
+    lock_auth_state
+    read_apprise_urls "$2"
+    write_user_file apprise.txt "$apprise_temp" \
+      || fail "could not save notification URLs"
+    printf '{"ok":true,"urls":%s}\n' "$2"
+    ;;
+  apprise-body-set-stdin)
+    [ "$#" -eq 1 ] || fail "apprise-body-set-stdin takes no arguments"
+    lock_auth_state
+    read_apprise_body
+    write_user_file body.txt "$apprise_temp" \
+      || fail "could not save notification template"
+    printf '{"ok":true}\n'
+    ;;
+  apprise-test)
+    [ "$#" -eq 1 ] || fail "apprise-test takes no arguments"
+    # Only saved settings are sent. Apprise output can echo service URLs, so
+    # it is discarded and the caller learns only whether delivery succeeded.
+    if /usr/sbin/runuser -u "$birdnet_user" -- /usr/bin/env -i \
+      PATH=/usr/bin:/bin HOME="$birdnet_home" LANG=C.UTF-8 \
+      /usr/bin/timeout 30 "$repo_dir/birdnet/bin/python3" \
+      "$repo_dir/scripts/send_test_notification.py" \
+      --config "$repo_dir/apprise.txt" --body "$repo_dir/body.txt" \
+      </dev/null >/dev/null 2>&1; then
+      printf '{"ok":true}\n'
+    else
+      fail "test notification was not delivered"
+    fi
     ;;
   *) fail "unknown action" ;;
 esac

@@ -1,5 +1,8 @@
 import os
 import sqlite3
+import sys
+import tempfile
+import time
 import unittest
 from datetime import datetime
 from unittest.mock import patch
@@ -187,6 +190,67 @@ class TestAppriseNotifications(unittest.TestCase):
         mock_load_settings.return_value = settings_dict
         sendAppriseNotifications(**self.get_default_params())
         self.assertEqual(mock_notify.call_count, 1)
+
+
+class TestNotifyResult(unittest.TestCase):
+
+    @patch('scripts.utils.notifications.apprise')
+    def test_notify_returns_delivery_result(self, mock_apprise):
+        notifications.apobj = None
+        mock_apprise.Apprise.return_value.notify.return_value = False
+        try:
+            self.assertFalse(notifications.notify('body', 'title'))
+            mock_apprise.Apprise.return_value.notify.return_value = True
+            self.assertTrue(notifications.notify('body', 'title'))
+        finally:
+            notifications.apobj = None
+
+
+class TestSendTestNotification(unittest.TestCase):
+    """The admin panel's test button trusts this script's exit code."""
+
+    @classmethod
+    def setUpClass(cls):
+        scripts = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scripts')
+        if scripts not in sys.path:
+            sys.path.insert(0, scripts)
+        import send_test_notification
+        cls.sender = send_test_notification
+
+    def setUp(self):
+        self.files = []
+        for name, content in (('config', 'json://localhost/x'), ('body', 'A $comname')):
+            handle = tempfile.NamedTemporaryFile('w', delete=False, suffix=name)
+            handle.write(content)
+            handle.close()
+            self.files.append(handle.name)
+        self.settings = Settings.with_defaults()
+        self.settings['APPRISE_ONLY_NOTIFY_SPECIES_NAMES'] = 'King Penguin'
+        self.settings['APPRISE_MINIMUM_SECONDS_BETWEEN_NOTIFICATIONS_PER_SPECIES'] = '3600'
+        self.sender.notifications.species_last_notified['King Penguin'] = int(time.time())
+
+    def tearDown(self):
+        self.sender.notifications.species_last_notified.clear()
+        for path in self.files:
+            os.remove(path)
+
+    def run_sender(self, delivered):
+        args = ['--config', self.files[0], '--body', self.files[1]]
+        with patch.object(self.sender, 'get_settings', return_value=self.settings), \
+                patch.object(self.sender.notifications, 'get_settings', return_value=self.settings), \
+                patch.object(self.sender, 'get_latest', return_value=None), \
+                patch.object(self.sender.notifications, 'notify', return_value=delivered) as notify:
+            return self.sender.main(args), notify
+
+    def test_delivery_exits_zero_despite_filters_and_cooldown(self):
+        code, notify = self.run_sender(True)
+        self.assertEqual(code, 0)
+        self.assertEqual(notify.call_count, 1)
+        self.assertEqual(notify.call_args[0][1], 'New backyard bird!')
+
+    def test_failed_delivery_exits_nonzero(self):
+        code, _ = self.run_sender(False)
+        self.assertEqual(code, 1)
 
 
 if __name__ == '__main__':

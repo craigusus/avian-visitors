@@ -613,7 +613,7 @@ assert.match(css, /#atlasGrid\[data-layout="classic"\][\s\S]*?repeat\(auto-fill,
   'Classic mode restores the historical responsive desktop grid');
 assert.match(css, /#atlasGrid\[data-layout="classic"\][\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/,
   'Classic mode restores the historical two-up mobile grid');
-assert.match(html, /styles\.css\?v=r196/, 'Classic Atlas styles have a fresh cache key');
-assert.match(html, /apt\.js\?v=r241/, 'Classic Atlas and admin recovery behavior have a fresh cache key');
+assert.match(html, /styles\.css\?v=r197/, 'Classic Atlas styles have a fresh cache key');
+assert.match(html, /apt\.js\?v=r242/, 'Classic Atlas and admin recovery behavior have a fresh cache key');
 
 console.log('classic Atlas smoke: ok');

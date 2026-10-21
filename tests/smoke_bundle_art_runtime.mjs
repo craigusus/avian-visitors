@@ -6,7 +6,7 @@ import vm from 'node:vm';
 
 const apt = fs.readFileSync(new URL('../avian/frontend/apt.js', import.meta.url), 'utf8');
 const index = fs.readFileSync(new URL('../avian/frontend/index.html', import.meta.url), 'utf8');
-assert.match(index, /[.]\/apt[.]js[?]v=r241["']/,
+assert.match(index, /[.]\/apt[.]js[?]v=r242["']/,
   'the shell requests the content-revision-aware frontend under a fresh cache key');
 const start = apt.indexOf('function bundleRecord(');
 const end = apt.indexOf('function tuning(', start);

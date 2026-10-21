@@ -7,18 +7,24 @@ from utils import notifications
 from utils.helpers import get_settings
 from utils.db import get_latest
 
-if __name__ == "__main__":
+
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', help='path to config', required=True)
-    parser.add_argument('--title', help='title', required=True)
+    parser.add_argument('--title', help='title (default: the saved notification title)')
     parser.add_argument('--body', help='path to body template', required=True)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     conf = get_settings()
-    conf['APPRISE_NOTIFICATION_TITLE'] = args.title
+    if args.title is not None:
+        conf['APPRISE_NOTIFICATION_TITLE'] = args.title
     conf['APPRISE_NOTIFY_EACH_DETECTION'] = '1'
     conf['APPRISE_NOTIFY_NEW_SPECIES_EACH_DAY'] = '0'
     conf['APPRISE_NOTIFY_NEW_SPECIES'] = '0'
+    # A test must not be skipped by species filters or the per-species cooldown.
+    conf['APPRISE_ONLY_NOTIFY_SPECIES_NAMES'] = ''
+    conf['APPRISE_ONLY_NOTIFY_SPECIES_NAMES_2'] = ''
+    conf['APPRISE_MINIMUM_SECONDS_BETWEEN_NOTIFICATIONS_PER_SPECIES'] = '0'
 
     notifications.APPRISE_CONFIG = args.config
     notifications.APPRISE_BODY = args.body
@@ -38,5 +44,23 @@ if __name__ == "__main__":
              'Lat': conf.getfloat('LATITUDE'), 'Lon': conf.getfloat('LONGITUDE'), 'Cutoff': conf.getfloat('CONFIDENCE'),
              'Sens': conf.getfloat('SENSITIVITY'), 'Overlap': conf.getfloat('OVERLAP')}
 
-    notifications.sendAppriseNotifications(d['Sci_Name'], d['Com_Name'], d['Confidence'], round(d['Confidence'] * 100), d['File_Name'], d['Date'], d['Time'],
-                                           d['Week'], d['Lat'], d['Lon'], d['Cutoff'], d['Sens'], d['Overlap'])
+    results = []
+    send = notifications.notify
+
+    def recording_notify(*a, **kw):
+        result = send(*a, **kw)
+        results.append(bool(result))
+        return result
+
+    notifications.notify = recording_notify
+    try:
+        notifications.sendAppriseNotifications(d['Sci_Name'], d['Com_Name'], d['Confidence'], round(d['Confidence'] * 100),
+                                               d['File_Name'], d['Date'], d['Time'], d['Week'], d['Lat'], d['Lon'],
+                                               d['Cutoff'], d['Sens'], d['Overlap'])
+    finally:
+        notifications.notify = send
+    return 0 if results and all(results) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

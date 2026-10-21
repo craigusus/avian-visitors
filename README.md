@@ -71,6 +71,17 @@ Stock BirdNET-Pi pages still render, but privileged legacy controls are not enab
 
 Optional Google Drive backups are set up under **Settings → Nightly Drive backup**. Local cleanup stays unavailable until an archive run has been verified.
 
+### Notifications
+
+**Settings → Notifications** sends alerts through [Apprise](https://github.com/caronc/apprise/wiki) to Discord, MQTT, Home Assistant, ntfy, Telegram, email and more. Add one Apprise URL per service, choose the triggers (every detection, first of a species today, rare this week, weekly report), and use **send test** to check delivery.
+
+- Saved URLs often contain tokens or passwords, so they are shown masked. **reveal URLs** asks for the admin password again and hides them after 60 seconds; it is only available once an admin password is set.
+- Templates may use `$comname`, `$sciname`, `$confidencepct` and the other listed variables. Quotes, backslashes, backticks and other `$` expressions are refused because `birdnet.conf` is read by shell scripts.
+- `include` lines and YAML Apprise configs are not managed here. If `apprise.txt` contains them, edit it over SSH.
+- Apprise can post to any address the station can reach, including LAN hosts (`json://`, `form://`). Only add URLs you trust.
+
+Stations updated from an older version need **Tools → Pull latest** (or `sudo /usr/local/sbin/avian-service-refresh`) before this section appears.
+
 ### Local admin access
 
 Optional password protection for local administrator controls can be enabled in **Settings**. Public bird pages remain available without signing in, while live audio is unavailable when protection is on.

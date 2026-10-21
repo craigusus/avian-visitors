@@ -2,6 +2,8 @@
 
 Default install hosts the collage at `http://birdnet.local/` on your LAN, no auth. The recipes below are independent. Pick what you need.
 
+For push alerts (Discord, `mqtt://`, Home Assistant `hassio://`, ntfy and more), use **Settings → Notifications** instead; see the main README. The recipes below cover polling and remote access.
+
 ---
 
 ## 1. Cloudflare Tunnel

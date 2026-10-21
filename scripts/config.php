@@ -209,9 +209,18 @@ if(isset($_GET['sendtest']) && $_GET['sendtest'] == "true") {
   chmod($t_body_path, 0644);
   fwrite($temp_body, $body);
 
-  $cmd = "sudo -u $user $home/BirdNET-Pi/birdnet/bin/python3 $home/BirdNET-Pi/scripts/send_test_notification.py --body $t_body_path --config $t_conf_path --title '" . escapeshellcmd($title) . "' 2>&1";
-  $ret = shell_exec($cmd);
-  echo "<pre class=\"bash\">".$ret."</pre>";
+  // Argument array: the title is user input and must never reach a shell.
+  $cmd = ['sudo', '-u', $user, "$home/BirdNET-Pi/birdnet/bin/python3",
+    "$home/BirdNET-Pi/scripts/send_test_notification.py",
+    '--body', $t_body_path, '--config', $t_conf_path, '--title=' . (string)$title];
+  $ret = '';
+  $process = proc_open($cmd, [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes);
+  if (is_resource($process)) {
+    $ret = stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+    proc_close($process);
+  }
+  echo "<pre class=\"bash\">".htmlspecialchars((string)$ret, ENT_QUOTES)."</pre>";
   fclose($temp_conf);
   fclose($temp_body);
 

@@ -324,7 +324,42 @@ grep -Fxq 'CADDY_PWD=""' "$conf" || fail "routine initialization did not scrub r
 ! grep -Fq 'restored-old-password' "$conf" \
   || fail "routine initialization left restored password bytes in config"
 
-grep -Fq '"version":3' < <("$admin" version) || fail "control version is not three"
+grep -Fq '"version":4' < <("$admin" version) || fail "control version is not four"
+
+# Notification settings: bash-inert config values, and Apprise files written
+# by the BirdNET-Pi user so a planted symlink cannot redirect a root write.
+repo_owner=$(stat -c '%u:%g' "$repo")
+chown "$birdnet_user:$birdnet_user" "$repo"
+"$admin" config-set APPRISE_NOTIFICATION_TITLE 'New $comname' >/dev/null
+grep -Fxq 'APPRISE_NOTIFICATION_TITLE="New $comname"' "$conf" \
+  || fail "template title was not saved literally"
+expect_failure "command substitution title" "invalid config value" \
+  "$admin" config-set APPRISE_NOTIFICATION_TITLE '$(id)'
+expect_failure "parameter expansion title" "invalid config value" \
+  "$admin" config-set APPRISE_NOTIFICATION_TITLE '${HOME}'
+expect_failure "backtick species list" "invalid config value" \
+  "$admin" config-set APPRISE_ONLY_NOTIFY_SPECIES_NAMES 'a`id`'
+printf 'canary\n' >/tmp/avian-apprise-canary
+ln -sfn /tmp/avian-apprise-canary "$repo/apprise.txt"
+printf 'discord://1/token\0# note\0' | "$admin" apprise-urls-set-stdin 2 >/dev/null
+[ "$(cat /tmp/avian-apprise-canary)" = canary ] \
+  || fail "notification URL write followed a planted symlink"
+[ ! -L "$repo/apprise.txt" ] && [ "$(stat -c '%U:%a' "$repo/apprise.txt")" = "$birdnet_user:600" ] \
+  || fail "notification URLs are not a private file owned by the BirdNET-Pi user"
+[ "$(cat "$repo/apprise.txt")" = $'discord://1/token\n# note' ] \
+  || fail "notification URLs were not written exactly"
+expect_failure "include directive" "notification URL 1 is not allowed" \
+  bash -c 'printf "include http://example.com/c\0" | "$1" apprise-urls-set-stdin 1' _ "$admin"
+expect_failure "too many URLs" "notification URL count is not allowed" \
+  bash -c 'printf "" | "$1" apprise-urls-set-stdin 21' _ "$admin"
+printf 'A $comname\n' | "$admin" apprise-body-set-stdin >/dev/null
+[ "$(stat -c '%U:%a' "$repo/body.txt")" = "$birdnet_user:600" ] \
+  || fail "notification template is not private"
+"$admin" apprise-read >/tmp/avian-apprise-read.json
+grep -Fq '"urls":["discord://1/token","# note"],"body":"A $comname"' /tmp/avian-apprise-read.json \
+  || fail "apprise-read returned $(cat /tmp/avian-apprise-read.json)"
+rm -f "$repo/apprise.txt" "$repo/body.txt" /tmp/avian-apprise-canary /tmp/avian-apprise-read.json
+chown "$repo_owner" "$repo"
 expect_failure "Caddy username initialization" "web requests cannot initialize" \
   env SUDO_USER=caddy "$admin" auth-state-init
 expect_failure "Caddy UID initialization" "web requests cannot initialize" \

@@ -32,13 +32,13 @@ def notify(body, title, attached=""):
         apobj.add(config)
 
     if attached != "":
-        apobj.notify(
+        return apobj.notify(
             body=body,
             title=title,
             attach=attached,
         )
     else:
-        apobj.notify(
+        return apobj.notify(
             body=body,
             title=title,
         )

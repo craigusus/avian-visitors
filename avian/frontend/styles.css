@@ -835,6 +835,33 @@
     margin: 2px 6px 0; padding: 6px 8px 4px;
     border-radius: 8px; background: var(--paper-2); box-shadow: var(--recess);
   }
+  .notify-details-shell[hidden] { display: none; }
+  .notify-details { gap: 2px; }
+  .notify-section, .notify-field {
+    display: grid; gap: 5px; padding: 6px 3px;
+    color: var(--ink); font: 10px ui-monospace, Menlo, monospace;
+  }
+  .notify-urls { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+  .notify-urls li {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px;
+  }
+  .notify-urls code { overflow-wrap: anywhere; font: 10px ui-monospace, Menlo, monospace; }
+  .notify-inline { display: flex; flex-wrap: wrap; gap: 6px; }
+  .notify-inline[hidden] { display: none; }
+  .notify-inline input { flex: 1 1 170px; min-width: 0; }
+  .notify-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .notify-help { color: var(--ink-2); text-underline-offset: 2px; }
+  .notify-section input, .notify-field input, .notify-field textarea {
+    width: 100%; box-sizing: border-box; padding: 7px 8px; border: 0; border-radius: 6px;
+    outline: 0; background: var(--paper); color: var(--ink); box-shadow: var(--recess);
+    font: 11px ui-monospace, Menlo, monospace;
+  }
+  .notify-field textarea { resize: vertical; min-height: 64px; }
+  .notify-section input:focus-visible, .notify-field input:focus-visible,
+  .notify-field textarea:focus-visible {
+    box-shadow: var(--recess), 0 0 0 2px var(--ink-soft);
+  }
+  .notify-actions .chip:disabled { opacity: 0.42; cursor: not-allowed; }
   .birdweather-unavailable {
     margin: 1px 10px 7px; color: var(--ink-soft);
     font: 8.5px/1.45 ui-monospace, Menlo, monospace;
