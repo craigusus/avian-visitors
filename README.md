@@ -47,7 +47,7 @@ Installer assumes passwordless sudo (Raspberry Pi OS Lite default - if you've ti
 
 ```bash
 ssh <your-username>@birdnet.local
-curl -s https://raw.githubusercontent.com/Twarner491/AvianVisitors/avian-visitors/newinstaller.sh | bash
+curl -s https://raw.githubusercontent.com/craigusus/avian-visitors/avian-visitors/newinstaller.sh | bash
 ```
 
 Clones this fork, installs BirdNET-Pi, symlinks the AvianVisitors overlay into the Caddy web root. Takes 20-40 minutes. Reboots when done.
@@ -105,7 +105,7 @@ sudo /usr/local/sbin/avian-educators enable
 New stations can also install with the profile enabled:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Twarner491/AvianVisitors/avian-visitors/newinstaller.sh | bash -s -- --educators
+curl -fsSL https://raw.githubusercontent.com/craigusus/avian-visitors/avian-visitors/newinstaller.sh | bash -s -- --educators
 ```
 
 Listening periods scope the Collage, Stats, Atlas, and available detection clips without copying or protecting audio files from normal retention. Saved period and folder exports require a direct local connection. See [the Educators guide](docs/educators.md) for the full workflow and privacy details.
@@ -116,7 +116,7 @@ For the first v1 update, or if an interrupted older update left the admin helper
 
 ```bash
 upgrade=$(mktemp "$HOME/avian-v1-upgrade.XXXXXX")
-curl -fsSL https://raw.githubusercontent.com/Twarner491/AvianVisitors/avian-visitors/scripts/bootstrap_v1.sh -o "$upgrade"
+curl -fsSL https://raw.githubusercontent.com/craigusus/avian-visitors/avian-visitors/scripts/bootstrap_v1.sh -o "$upgrade"
 sudo bash "$upgrade"
 rm -f "$upgrade"
 ```

@@ -25,7 +25,7 @@ seed=$test_root/seed
 repo=$station_home/BirdNET-Pi
 remote=$test_root/official.git
 webroot=$station_home/BirdSongs/Extracted
-official=https://github.com/Twarner491/AvianVisitors.git
+official=https://github.com/craigusus/avian-visitors.git
 old_release=4515065dd38a3f5e4c244398d30a6f872384cb87
 
 rm -rf "$test_root" "$station_home"

@@ -23,7 +23,7 @@ git -C "$repo" -c user.name=test -c user.email=test@example.test commit -qm fixt
 release=$(git -C "$repo" rev-parse HEAD)
 git clone -q --bare "$repo" "$fixture/official.git"
 chmod -R a+rX "$fixture/official.git"
-official=https://github.com/Twarner491/AvianVisitors.git
+official=https://github.com/craigusus/avian-visitors.git
 git -C "$repo" remote add origin "$official"
 chown -R "$station_user:$station_user" "$station_home"
 printf '[url "file://%s/official.git"]\n insteadOf = %s\n' "$fixture" "$official" >/etc/gitconfig
