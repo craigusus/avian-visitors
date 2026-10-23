@@ -42,6 +42,62 @@ conf_value() {
   ' "$file" 2>/dev/null || true
 }
 
+normalize_legacy_shifted_dirs() {
+  /usr/bin/python3 -I - "$1" "$2" "$3" <<'PY'
+import errno
+import os
+from pathlib import Path
+import sys
+
+home, uid, gid = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+if os.geteuid() != 0 or uid <= 0 or gid <= 0:
+    raise PermissionError("shifted directory migration requires root and a station account")
+root = Path(home) / "BirdSongs/Extracted/By_Date"
+try:
+    resolved = root.resolve(strict=True)
+except FileNotFoundError:
+    sys.exit(0)
+
+flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+
+def open_child(parent, name):
+    try:
+        return os.open(name, flags, dir_fd=parent)
+    except OSError as error:
+        if error.errno in (errno.ENOENT, errno.ENOTDIR, errno.ELOOP):
+            return None
+        raise
+
+def normalize(directory):
+    for name in os.listdir(directory):
+        child = open_child(directory, name)
+        if child is None:
+            continue
+        try:
+            normalize(child)
+        finally:
+            os.close(child)
+    if os.fstat(directory).st_uid == 0:
+        os.fchown(directory, uid, gid)
+
+# Resolve the storage-root symlink once, then pin every component without links.
+root_fd = os.open("/", flags)
+try:
+    for part in resolved.parts[1:]:
+        child = os.open(part, flags, dir_fd=root_fd)
+        os.close(root_fd)
+        root_fd = child
+    shifted_fd = open_child(root_fd, "shifted")
+    if shifted_fd is not None:
+        try:
+            normalize(shifted_fd)
+        finally:
+            os.close(shifted_fd)
+finally:
+    os.close(root_fd)
+PY
+}
+
 render_bundle_export_pool() {
   local version=$1
   cat <<EOF
@@ -621,6 +677,7 @@ caddy ALL=(root) NOPASSWD: /usr/local/sbin/avian-admin-control *, \
     /usr/local/sbin/avian-archive-control enable, \
     /usr/local/sbin/avian-archive-control disable, \
     /usr/local/sbin/avian-archive-control run, \
+    /usr/local/sbin/avian-archive-control stop, \
     /usr/local/sbin/avian-archive-control purge-on, \
     /usr/local/sbin/avian-archive-control purge-off, \
     /usr/local/sbin/avian-maintenance-control status, \
@@ -674,6 +731,10 @@ fi
 
 chown "$birdnet_user:$birdnet_group" "$conf_path"
 chmod 0640 "$conf_path"
+
+# Older playback pages created these directories with sudo mkdir.
+normalize_legacy_shifted_dirs "$birdnet_home" "$(id -u "$birdnet_user")" "$birdnet_gid" \
+  || { echo "Could not normalize legacy shifted recording directories" >&2; exit 1; }
 
 # The on-station illustrator writes images and its two generated indexes, not
 # executable code. Caddy is denied PHP execution beneath these image paths by

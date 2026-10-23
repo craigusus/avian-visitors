@@ -180,7 +180,7 @@ do not edit `apt.js` on a station: the mask build already refreshes browser cach
 
 Don't install these requirements into `~/BirdNET-Pi/birdnet`: a newer Pillow breaks BirdNET's streamlit.
 
-`cutout.py` checks free memory before loading its ~1 GB model. On a Pi with 4 GB of RAM or less it stops instead of being OOM-killed. Run it on a desktop and copy the PNGs back, or add `--model u2net`.
+`cutout.py` checks free memory before loading its ~1 GB model. On a Pi with 4 GB of RAM or less it stops instead of being OOM-killed. Run it on a desktop and copy the PNGs back, or add `--model u2net`. The default model has been [OOM-killed even on an 8 GB Pi 5](https://github.com/Twarner491/AvianVisitors/pull/89), so if it still runs out of memory, retry with `--model u2net`.
 
 Filter to your region with `--ebird-region US-CA` (needs `EBIRD_API_KEY`). The full pipeline, prompt, reference images, and per-species tuning live in [`avian/scripts/README.md`](avian/scripts/README.md). Style lives in [`prompt.template.md`](avian/scripts/prompt.template.md).
 

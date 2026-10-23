@@ -12728,12 +12728,18 @@
       && state.dependencies.sqlite3 && state.remote && state.remote.configured);
   }
 
+  function archiveRunningState(state) {
+    return !!(state && state.service
+      && ['active', 'activating', 'deactivating'].indexOf(state.service.active) !== -1);
+  }
+
   function archiveSettingsRow(initialState) {
-    var configured = archiveConfiguredState(initialState);
-    var enabled = configured && initialState.timer && initialState.timer.enabled === 'enabled';
+    var enabled = initialState && initialState.ok && initialState.timer && initialState.timer.enabled === 'enabled';
+    var open = enabled || archiveRunningState(initialState);
     var remoteName = initialState && initialState.remote && initialState.remote.name || 'gdrive';
     var archiveDetails = 'Back up completed days to Google Drive. Before first use, run rclone config on the Pi, name the remote '
-      + adminEsc(remoteName) + ', choose drive.file, then return here and use the button beside the command.';
+      + adminEsc(remoteName) + ', choose drive.file, then return here and use the button beside the command. '
+      + 'Turning this off stops future backups. Use stop backup to end a running backup. Files already in Drive stay there.';
     return ''
       + '<div class="archive-settings-control" data-archive-control aria-busy="' + (initialState ? 'false' : 'true') + '">'
       + '  <div class="menu-row archive-settings-head">'
@@ -12741,13 +12747,13 @@
       + settingsInfoMarkup('archiveBackupTip', 'About Nightly Drive backup', archiveDetails)
       + '    </div>'
       + '    <div class="archive-settings-head-actions">'
-      + '      <button type="button" class="settings-disclosure" data-archive-disclosure aria-controls="archiveSettingsDetails" aria-expanded="' + (enabled ? 'true' : 'false') + '">details</button>'
+      + '      <button type="button" class="settings-disclosure" data-archive-disclosure aria-controls="archiveSettingsDetails" aria-expanded="' + (open ? 'true' : 'false') + '">details</button>'
       + '      <button type="button" class="switch" role="switch" data-archive-toggle aria-label="Nightly Drive backup" aria-describedby="archiveBackupTip" aria-checked="' + (enabled ? 'true' : 'false') + '"></button>'
       + '    </div>'
       + '  </div>'
       + '  <div id="archiveSettingsDetails" class="birdweather-details-shell archive-details-shell" data-archive-details-shell'
-      + '    data-open="' + (enabled ? 'true' : 'false') + '" data-settled="' + (enabled ? 'true' : 'false') + '"'
-      + '    aria-hidden="' + (enabled ? 'false' : 'true') + '"' + (enabled ? '' : ' hidden inert') + '>'
+      + '    data-open="' + (open ? 'true' : 'false') + '" data-settled="' + (open ? 'true' : 'false') + '"'
+      + '    aria-hidden="' + (open ? 'false' : 'true') + '"' + (open ? '' : ' hidden inert') + '>'
       + '    <div class="archive-settings-details" data-archive-details></div>'
       + '  </div>'
       + '</div>';
@@ -12765,7 +12771,8 @@
     var archiveNotice = initialState && initialState.error || '';
     var archiveNoticeAction = archiveNotice ? 'refresh' : '';
     var archiveNoticeError = !!archiveNotice;
-    var archiveOpen = !!(archiveState && archiveState.timer && archiveState.timer.enabled === 'enabled');
+    var archiveOpen = !!(archiveState && archiveState.timer && archiveState.timer.enabled === 'enabled')
+      || archiveRunningState(archiveState);
     var archiveBusy = false;
     var archiveBusyAction = '';
     var archiveSequence = 0;
@@ -12867,7 +12874,16 @@
     function archiveDetail(state) {
       var configured = archiveConfiguredState(state);
       if (!configured && !archiveOpen) return '';
+      var enabled = state && state.timer && state.timer.enabled === 'enabled';
+      var running = archiveRunningState(state);
+      var stopping = running && state.service.active === 'deactivating';
       var inner = '<div class="archive-detail' + (configured ? ' is-controls' : '') + '">';
+      if (!enabled && running) inner += '<p>Nightly backup is off. The current backup is still running.</p>';
+      if (running) {
+        inner += archiveActionRow('<button type="button" class="archive-button quiet" data-archive-action="stop"'
+          + (archiveBusy || stopping ? ' disabled' : '') + '>'
+          + (stopping || archiveBusyAction === 'stop' ? 'stopping...' : 'stop backup') + '</button>', 'stop');
+      }
       if (!state) {
         if (archiveFailureKind === 'helper') {
           inner += '<p>Refresh the archive helper after updating.</p>'
@@ -12907,8 +12923,6 @@
             : '')
           + '</div>';
       } else {
-        var enabled = state.timer && state.timer.enabled === 'enabled';
-        var running = state.service && (state.service.active === 'active' || state.service.active === 'activating');
         inner += '<div class="archive-run-row">'
           + '<button type="button" class="archive-button quiet archive-run-button" data-archive-action="run"'
           + (running || archiveBusy ? ' disabled' : '') + '>' + (running ? 'running...' : 'run now') + '</button>'
@@ -12919,7 +12933,9 @@
             state.purge ? 'purge-off' : 'purge-on', archiveBusy || running || !canPurge,
             'Run the archive once before enabling local cleanup.');
         }
-        if (archiveNoticeError) inner += '<div class="archive-command-error">' + adminEsc(archiveNotice) + '</div>';
+      }
+      if (state && archiveNoticeError && (configured || archiveNoticeAction === 'disable' || archiveNoticeAction === 'stop')) {
+        inner += '<div class="archive-command-error">' + adminEsc(archiveNotice) + '</div>';
       }
       return inner + '</div>';
     }
@@ -12964,8 +12980,7 @@
     });
 
     function paintArchive() {
-      var configured = archiveConfiguredState(archiveState);
-      var enabled = configured && archiveState.timer && archiveState.timer.enabled === 'enabled';
+      var enabled = archiveState && archiveState.timer && archiveState.timer.enabled === 'enabled';
       control.setAttribute('aria-busy', archiveBusy ? 'true' : 'false');
       mainSwitch.disabled = archiveBusy;
       mainSwitch.setAttribute('aria-checked', enabled ? 'true' : 'false');
@@ -12973,7 +12988,7 @@
       retentionControls(null, null, archiveBusy || enabled);
     }
 
-    function loadArchiveStatus() {
+    function loadArchiveStatus(afterDisable) {
       var request = ++archiveSequence;
       return adminFetch('./avian/api/archive.php', { credentials: 'same-origin', cache: 'no-store' })
         .then(function (response) {
@@ -12992,7 +13007,9 @@
               archiveNotice = '';
               archiveNoticeAction = '';
             }
-            paintArchive();
+            if (afterDisable && archiveRunningState(result)) {
+              openDetails(true);
+            } else paintArchive();
           });
         }).catch(function (error) {
           if (request !== archiveSequence || adminAuthCancelled(error)) return;
@@ -13017,7 +13034,7 @@
         : action === 'install' ? 'installing...'
           : action === 'enable' ? 'enabling...'
             : action === 'disable' ? 'disabling...'
-              : 'saving...';
+              : action === 'stop' ? 'stopping...' : 'saving...';
       paintArchive();
       var prepared = action === 'enable' || action === 'run';
       var timerWasEnabled = !!(archiveState && archiveState.timer && archiveState.timer.enabled === 'enabled');
@@ -13039,20 +13056,22 @@
         archiveNotice = action === 'run' ? 'started'
           : action === 'install' ? 'installed'
             : action === 'enable' ? 'enabled'
-              : action === 'disable' ? 'disabled' : 'saved';
+              : action === 'disable' ? 'disabled'
+                : action === 'stop' ? '' : 'saved';
         archiveNoticeError = false;
         if (action === 'enable' || action === 'install' || action === 'run') archiveOpen = true;
-        if (action === 'disable') archiveOpen = false;
+        if (action === 'disable') archiveOpen = archiveRunningState(result);
       }).catch(function (error) {
         if (adminAuthCancelled(error)) return;
         archiveNotice = error.message || 'archive action failed';
         archiveNoticeError = true;
+        if (action === 'disable' || action === 'stop') archiveOpen = true;
       }).then(function () {
         archiveBusy = false;
         archiveBusyAction = '';
         if (archiveOpen !== detailsAreOpen()) openDetails(archiveOpen);
         else paintArchive();
-        return loadArchiveStatus();
+        return loadArchiveStatus(action === 'disable');
       });
     }
 
@@ -13070,11 +13089,11 @@
     disclosure.addEventListener('click', function () { openDetails(!detailsAreOpen()); });
     mainSwitch.addEventListener('click', function () {
       if (archiveBusy) return;
-      if (!archiveConfiguredState(archiveState)) {
+      var enabled = archiveState && archiveState.timer && archiveState.timer.enabled === 'enabled';
+      if (!archiveState || !archiveState.installed || (!enabled && !archiveConfiguredState(archiveState))) {
         openDetails(true);
         return;
       }
-      var enabled = archiveState.timer && archiveState.timer.enabled === 'enabled';
       if (!enabled) openDetails(true);
       performArchiveAction(enabled ? 'disable' : 'enable');
     });
@@ -13111,6 +13130,12 @@
 
     paintArchive();
     adminPollT = setInterval(loadArchiveStatus, 10000);
+  }
+
+  function stationVersionRow(version) {
+    var label = version && version.ok && typeof version.release === 'string' ? version.release : 'unavailable';
+    return '<div class="menu-row"><span class="label">Avian Visitors version</span>'
+      + '<span class="hint">' + adminEsc(label) + '</span></div>';
   }
 
   function renderAdminSettings() {
@@ -13157,6 +13182,10 @@
           if (adminAuthCancelled(error)) throw error;
           return { ok: false };
         }),
+      adminJson('./avian/api/birdnet-status.php?action=version').catch(function (error) {
+        if (adminAuthCancelled(error)) throw error;
+        return null;
+      }),
     ])
       .then(function (parts) {
         var cfg = parts[0];
@@ -13216,6 +13245,7 @@
           ])
           + '</section>'
           + cutoutsNote
+          + '<section>' + stationVersionRow(parts[5]) + '</section>'
           + '<div class="menu-save-row">'
           + '  <span class="save-state" id="saveState"></span>'
           + '</div>'

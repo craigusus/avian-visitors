@@ -2283,7 +2283,7 @@ document.documentElement.setAttribute('data-stamps-stage', 'fx-ready');
     Bubo:'Owls', Tyto:'Owls', Strix:'Owls', Megascops:'Owls', Athene:'Owls', Asio:'Owls',
     // hawks, eagles, falcons, vultures
     Buteo:'Hawks', Accipiter:'Hawks', Haliaeetus:'Hawks', Circus:'Hawks',
-    Falco:'Hawks', Cathartes:'Hawks', Elanus:'Hawks', Pandion:'Hawks',
+    Falco:'Falcons', Cathartes:'Hawks', Elanus:'Hawks', Pandion:'Hawks',
     // gulls and terns
     Larus:'Gulls', Chroicocephalus:'Gulls', Sterna:'Gulls', Hydroprogne:'Gulls',
     // kingfishers
@@ -2344,7 +2344,7 @@ document.documentElement.setAttribute('data-stamps-stage', 'fx-ready');
   /* Legacy issue labels; mixed visual groups are not biological families. */
   var GROUP_LATIN = {
     'Hummingbirds':'Trochilidae', 'Crows & Jays':'Corvidae', 'Herons':'Ardeidae',
-    'Waterfowl':'Anatidae', 'Owls':'Strigidae', 'Hawks':'Accipitridae',
+    'Waterfowl':'Anatidae', 'Owls':'Strigidae', 'Hawks':'Accipitridae', 'Falcons':'Falconidae',
     'Gulls':'Laridae', 'Sparrows':'Passerellidae', 'Finches':'Fringillidae',
     'Doves & Pigeons':'Columbidae', 'Thrushes':'Turdidae', 'Flycatchers':'Tyrannidae',
     'Mockingbirds & Thrashers':'Mimidae', 'Waxwings':'Bombycillidae',
@@ -2425,6 +2425,7 @@ document.documentElement.setAttribute('data-stamps-stage', 'fx-ready');
     'Waterfowl':'linescreen',             // engraved plate, in the duck-stamp tradition
     'Sparrows':'field',
     'Hawks':'raptor',
+    'Falcons':'raptor',
     'Warblers & Vireos':'field'
   };
   function groupFor(sci) {

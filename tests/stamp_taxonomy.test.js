@@ -18,7 +18,7 @@ const stamps = sandbox.window.STAMPS;
 
 test('reported species use biological families without changing visual issues', () => {
   for (const [sci, latin, group, style] of [
-    ['Falco tinnunculus', 'Falconidae', 'Hawks', 'raptor'],
+    ['Falco tinnunculus', 'Falconidae', 'Falcons', 'raptor'],
     ['Tyto alba', 'Tytonidae', 'Owls', 'opart'],
     ['Sturnus vulgaris', 'Sturnidae', 'Blackbirds & Orioles', 'dither'],
     ['Passer domesticus', 'Passeridae', 'Sparrows', 'sparrowGuide'],
@@ -27,6 +27,23 @@ test('reported species use biological families without changing visual issues', 
     assert.equal(stamps.familyOf(sci), group, sci);
     assert.equal(stamps.styleFor(sci).id, style, sci);
   }
+});
+
+test('falcons have their own Atlas group while retaining the raptor artwork', () => {
+  for (const [sci, com] of [
+    ['Falco sparverius', 'American Kestrel'],
+    ['Falco peregrinus', 'Peregrine Falcon'],
+    ['Falco columbarius', 'Merlin'],
+  ]) {
+    assert.equal(stamps.familyOf(sci), 'Falcons', sci);
+    assert.equal(stamps.latinOf(sci), 'Falconidae', sci);
+    const html = stamps.markup({sci, com, index: 1}, './falcon.png');
+    assert.match(html, /data-family="Falcons"/);
+    assert.match(html, /data-style="raptor"/);
+    assert.doesNotMatch(html, /Accipitridae/);
+  }
+  assert.equal(stamps.familyOf('Buteo jamaicensis'), 'Hawks');
+  assert.equal(stamps.styleFor('Buteo jamaicensis').id, 'raptor');
 });
 
 test('every mixed visual group keeps distinct biological families', () => {

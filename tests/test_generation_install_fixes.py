@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import sqlite3
 import subprocess
 
 import pytest
@@ -196,3 +197,81 @@ prepare_caddy_webroot
     result = run_install_functions(tmp_path, body)
     assert result.returncode != 0
     assert webroot.read_text() == "untouched"
+
+
+@pytest.fixture
+def service_install_database(tmp_path):
+    if not shutil.which("sqlite3"):
+        pytest.skip("SQLite CLI is unavailable")
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    createdb = scripts / "createdb.sh"
+    createdb.write_text((ROOT / "scripts/createdb.sh").read_text()
+                       .replace("source /etc/birdnet/birdnet.conf", ":")
+                       .replace("$HOME/BirdNET-Pi", str(tmp_path)))
+    createdb.chmod(0o755)
+    # Isolate apt/systemd/network setup, retaining the real orchestration and SQL.
+    functions = shell_functions(ROOT / "scripts/install_services.sh")
+    names = re.findall(r"^(\w+)\(\) \{", functions, re.M)
+    stubs = "\n".join(f"{name}() {{ :; }}" for name in names
+                      if name not in {"install_services", "validate_install_database"})
+    body = f'''
+{stubs}
+install_tmp_mount() {{ :; }}
+install_birdnet_mount() {{ :; }}
+prepare_caddy_webroot() {{ echo service-mutated >&2; }}
+my_dir={json.dumps(str(tmp_path))}
+USER=$(id -un)
+install_services
+'''
+    return lambda: run_install_functions(tmp_path, body), scripts / "birds.db"
+
+
+def test_service_install_rerun_preserves_recorded_detections(service_install_database):
+    run, database = service_install_database
+    first = run()
+    assert first.returncode == 0, first.stderr
+    with sqlite3.connect(database) as connection:
+        connection.execute("INSERT INTO detections (Sci_Name, Com_Name, File_Name) "
+                           "VALUES ('Pica pica', 'Magpie', 'recording.wav')")
+    second = run()
+    assert second.returncode == 0, second.stderr
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("SELECT Sci_Name, Com_Name, File_Name FROM detections").fetchall() == [
+            ("Pica pica", "Magpie", "recording.wav")]
+
+
+@pytest.mark.parametrize("kind", ["empty", "no-table", "wrong-schema", "corrupt", "symlink", "dangling-symlink"])
+def test_service_install_rejects_invalid_database_without_reset(service_install_database, kind):
+    run, database = service_install_database
+    if kind in {"no-table", "wrong-schema"}:
+        with sqlite3.connect(database) as connection:
+            table = "sentinel" if kind == "no-table" else "detections"
+            connection.execute(f"CREATE TABLE {table} (value TEXT)")
+    elif kind in {"symlink", "dangling-symlink"}:
+        target = database.with_name("sentinel.db")
+        if kind == "symlink":
+            target.write_bytes(b"untouched")
+        database.symlink_to(target)
+    else:
+        database.write_bytes(b"" if kind == "empty" else b"not a database")
+    before = os.readlink(database) if database.is_symlink() else database.read_bytes()
+    result = run()
+    assert result.returncode != 0
+    assert "Existing detections database" in result.stderr
+    assert "service-mutated" not in result.stderr
+    after = os.readlink(database) if database.is_symlink() else database.read_bytes()
+    assert after == before
+    if kind == "symlink":
+        assert target.read_bytes() == b"untouched"
+
+
+def test_service_install_verifies_database_after_creation(service_install_database):
+    run, database = service_install_database
+    createdb = database.with_name("createdb.sh")
+    # Reproduce createdb's trailing chmod masking a failed sqlite invocation.
+    source = createdb.read_text()
+    source = source.replace("sqlite3 ", "sqlite3() { touch \"$1\"; return 1; }\nsqlite3 ", 1)
+    createdb.write_text(source)
+    result = run()
+    assert result.returncode != 0

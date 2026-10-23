@@ -569,7 +569,17 @@ EOF
   systemctl daemon-reload
 }
 
+validate_install_database() {
+  [ -f "${my_dir}/scripts/birds.db" ] && [ ! -L "${my_dir}/scripts/birds.db" ] \
+    && sqlite3 -readonly "${my_dir}/scripts/birds.db" \
+      'SELECT Date, Time, Sci_Name, Com_Name, Confidence, Lat, Lon, Cutoff, Week, Sens, Overlap, File_Name FROM detections LIMIT 1;' >/dev/null \
+    || { echo "Existing detections database is invalid or unsafe; left untouched. Repair it before retrying." >&2; return 1; }
+}
+
 install_services() {
+  if [ -e "${my_dir}/scripts/birds.db" ] || [ -L "${my_dir}/scripts/birds.db" ]; then
+    validate_install_database || return 1
+  fi
   prepare_caddy_webroot
   set_hostname
   update_etc_hosts
@@ -599,7 +609,11 @@ install_services() {
   generate_BirdDB
   configure_caddy_php
   config_icecast
-  USER=$USER HOME=$HOME ${my_dir}/scripts/createdb.sh
+  # createdb.sh deliberately drops detections for clear-all; never do that on a retry.
+  if [ ! -e "${my_dir}/scripts/birds.db" ] && [ ! -L "${my_dir}/scripts/birds.db" ]; then
+    USER=$USER HOME=$HOME "${my_dir}/scripts/createdb.sh"
+    validate_install_database || return 1
+  fi
 }
 
 if [ -f "${config_file}" ];then
